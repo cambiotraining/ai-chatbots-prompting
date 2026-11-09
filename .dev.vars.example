@@ -1,0 +1,5 @@
+# Copy to .dev.vars for local Worker development. Never commit real credentials.
+OPENAI_API_KEY=replace-with-your-project-api-key
+WORKSHOP_CODE=replace-with-a-workshop-code
+ADMIN_TOKEN=replace-with-a-long-random-facilitator-password
+SESSION_SECRET=replace-with-at-least-32-random-characters

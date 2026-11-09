@@ -1,0 +1,20 @@
+name = "prompting-lab-api"
+main = "worker/index.mjs"
+compatibility_date = "2026-11-01"
+
+[vars]
+# Change to your exact GitHub Pages origin, WITHOUT the repository path.
+ALLOWED_ORIGINS = "http://localhost:4173,http://127.0.0.1:4173"
+WORKSHOP_BUDGET_USD = "40"
+GROUP_COUNT = "10"
+MAX_CALLS_PER_GROUP = "60"
+MAX_OUTPUT_TOKENS = "1400"
+SESSION_HOURS = "8"
+
+[[durable_objects.bindings]]
+name = "WORKSHOP"
+class_name = "Workshop"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Workshop"]

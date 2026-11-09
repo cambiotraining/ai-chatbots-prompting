@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore prompting strategies, compare responses blind, and discuss AI use in life-sciences research.">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <title>CCRIT - AI chatbot prompting</title>
+  <link rel="stylesheet" href="./style.css">
+  <script src="./config.js" defer></script>
+  <script src="./app.mjs" type="module"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to workspace</a>
+  <header class="site-header">
+    <h1><a href="#lab">CCRIT - AI chatbot prompting</a></h1>
+    <div class="header-actions"><span id="connection-status" class="status"><i></i>Practice mode</span><button class="button small" id="connect-button">Join workshop</button><button class="text-button" id="leave-button" data-action="leave" hidden>Leave workshop</button></div>
+  </header>
+  <div id="mode-banner" class="mode-banner"></div>
+  <main id="main" tabindex="-1">
+    <nav class="tabs" aria-label="Workshop tools">
+      <a href="#lab" data-view="lab" class="tab active">Workspace</a>
+      <a href="#compare" data-view="compare" class="tab">Blind comparison <span class="count" id="comparison-count">0</span></a>
+      <a href="#facilitator" data-view="facilitator" class="tab facilitator-tab">Facilitator</a>
+    </nav>
+    <div class="topic-picker" id="topic-picker"><label for="topic-select">Research topic</label><select id="topic-select"></select></div>
+    <div id="view"></div>
+  </main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="connection-dialog" aria-labelledby="connection-title">
+    <form id="connection-form"><div class="dialog-top"><h2 id="connection-title">Join workshop</h2><button type="button" class="icon-button" id="close-dialog" aria-label="Close">×</button></div><label>Workshop service URL<input type="url" name="apiBase" id="service-url" placeholder="https://prompting-lab-api.example.workers.dev" required></label><div id="group-fields"><div class="form-row"><label>Group number<select name="groupId" id="group-select"></select></label><label>Group name (optional)<input name="groupName" maxlength="32" autocomplete="off"></label></div><label>Workshop code<input name="code" type="password" autocomplete="off"></label></div><div id="admin-fields" hidden><label>Facilitator password<input name="adminToken" type="password" autocomplete="off"></label></div><p id="connection-error" class="form-error" role="alert"></p><button class="button primary full" type="submit" id="join-submit">Join workshop</button><p class="fine-print">Use the supplied fictional topics. The workshop service sends prompts to OpenAI and saves responses and ratings for your facilitator.</p><button type="button" class="text-button" id="practice-button">Continue in practice mode</button></form>
+  </dialog>
+</body>
+</html>
