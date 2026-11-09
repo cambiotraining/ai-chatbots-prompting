@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { Workshop } from '../worker/index.mjs';
 import { LocalStorage } from './storage.mjs';
 import { loadEnv } from './env.mjs';
-import { MODELS, STRATEGIES, PRICE_DATE, estimateBudget, money } from '../public/shared.mjs';
+import { MODELS, STRATEGIES, PRICE_DATE, estimateBudget, modelById, money } from '../public/shared.mjs';
 
 const secrets = await loadEnv();
 if (!secrets.OPENAI_API_KEY || secrets.OPENAI_API_KEY.startsWith('replace-')) {
@@ -24,7 +24,7 @@ if (!secrets.OPENAI_API_KEY || secrets.OPENAI_API_KEY.startsWith('replace-')) {
   const pilotStrategies = STRATEGIES.filter(strategy => strategy.id !== 'role');
   for (let i = 0; i < 5; i++) {
     const strategy = pilotStrategies[i % pilotStrategies.length];
-    const model = i === 4 ? MODELS[1] : MODELS[0];
+    const model = modelById(i === 4 ? 'gpt-4.1-2025-04-14' : 'gpt-6-luna');
     const response = await send('/run', { model: model.id, strategyId: strategy.id, messages: [{ role: 'user', content: strategy.prompt }], requestId: crypto.randomUUID() }, token);
     const run = response.run;
     records.push({ model: model.id, strategy: strategy.id, status: response.status, inputTokens: run?.usage?.input_tokens, outputTokens: run?.usage?.output_tokens, costUsd: run?.costMicros / 1e6, latencyMs: run?.latencyMs, truncated: run?.truncated, error: response.error });

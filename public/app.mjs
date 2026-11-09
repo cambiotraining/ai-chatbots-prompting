@@ -1,6 +1,7 @@
-import { STRATEGIES, TOPICS, DEFAULT_TOPIC_ID, MAX_GROUPS, RATING_SCALE, MAX_RATING_TOTAL, EXPERT_ROLES, DEFAULT_ROLE_ID, expertRoleById, MODELS, PRICE_DATE, PRICE_SOURCE, topicById, briefForTopic, instructionsForTopic, strategyForTopic, rubricForTopic, strategyById, estimateBudget, money, validScores } from './shared.mjs';
+import { STRATEGIES, TOPICS, DEFAULT_TOPIC_ID, MAX_GROUPS, RATING_SCALE, MAX_RATING_TOTAL, EXPERT_ROLES, DEFAULT_ROLE_ID, expertRoleById, MODELS, modelById, PRICE_DATE, PRICE_SOURCE, topicById, briefForTopic, instructionsForTopic, strategyForTopic, rubricForTopic, strategyById, estimateBudget, money, validScores } from './shared.mjs';
 import { Demo } from './demo.mjs';
 import { renderMarkdown } from './markdown.mjs';
+import { COVID_BRIEF, COVID_PROMPT_OPTIONS, COVID_REFUSAL_TASK, covidPrompt, covidPracticeResponse } from './ai-safety.mjs';
 
 const $ = (selector, parent = document) => parent.querySelector(selector);
 const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
@@ -54,7 +55,7 @@ function renderHeader() {
   $('#leave-button').hidden = state.mode !== 'live';
   $('#mode-banner').hidden = state.mode === 'live';
   $('#mode-banner').textContent = 'Practice mode uses sample responses.';
-  $('#topic-picker').hidden = state.view === 'budget';
+  $('#topic-picker').hidden = ['budget', 'ai-safety'].includes(state.view);
   const topicSelect = $('#topic-select');
   topicSelect.value = state.topic.id;
   topicSelect.disabled = state.busy;
@@ -321,10 +322,78 @@ async function refreshAdmin() {
   state.admin = data;
   if (state.view === 'facilitator') renderFacilitator();
 }
+function renderAiSafety() {
+  const exercise = $('#ai-safety-exercise').content.firstElementChild.cloneNode(true);
+  const form = $('#covid-prompt-form', exercise);
+  const runButton = $('#covid-run', exercise);
+  const status = $('#covid-status', exercise);
+  const fields = [...Object.keys(COVID_PROMPT_OPTIONS), 'model'];
+  const options = () => Object.fromEntries(new FormData(form));
+  $('#covid-brief', exercise).textContent = COVID_BRIEF;
+  for (const [field, choices] of Object.entries(COVID_PROMPT_OPTIONS)) {
+    const placeholder = field === 'task' ? '' : '<option value="">Choose an option</option>';
+    form.elements[field].innerHTML = placeholder + choices.map(({ id, label }) =>
+      `<option value="${esc(id)}">${esc(label)}</option>`
+    ).join('');
+  }
+  form.elements.model.innerHTML = modelOptions();
+
+  function updatePrompt() {
+    const choices = options();
+    const prompt = covidPrompt(choices);
+    const model = modelById(choices.model);
+    const simulated = choices.task === COVID_REFUSAL_TASK;
+    const live = state.mode === 'live' && !simulated;
+    $('#covid-prompt-preview', exercise).value = prompt ?? 'Choose an audience and format to complete your prompt.';
+    $('#covid-mode', exercise).textContent = simulated ? 'The refusal simulation runs in your browser.' :
+      live && model ? `Runs on ${model.name} and uses the workshop’s API allowance.` : 'Practice mode shows an authored response.';
+    runButton.textContent = simulated ? 'Run refusal simulation' : live ? 'Run live prompt' : 'Run practice prompt';
+    runButton.disabled = !prompt || !model;
+  }
+
+  form.addEventListener('change', updatePrompt);
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (runButton.disabled) return;
+    const choices = options();
+    const prompt = covidPrompt(choices);
+    const model = modelById(choices.model);
+    if (!prompt || !model) return;
+    const simulated = choices.task === COVID_REFUSAL_TASK;
+    const live = state.mode === 'live' && !simulated;
+    runButton.disabled = true;
+    for (const field of fields) form.elements[field].disabled = true;
+    status.textContent = live ? 'Running the surveillance prompt…' : '';
+    try {
+      const run = live ? (await api('/ai-safety/run', { ...choices, requestId: crypto.randomUUID() })).run :
+        { text: covidPracticeResponse(choices), prompt };
+      if (run.status === 'pending') {
+        status.textContent = 'This request is still running.';
+        return;
+      }
+      const result = $('#covid-result', exercise).content.firstElementChild.cloneNode(true);
+      $('h3', result).textContent = COVID_PROMPT_OPTIONS.task.find(option => option.id === choices.task).label;
+      $('.badge', result).textContent = simulated ? 'Simulated refusal' : live ? `Live · ${model.name}` : 'Authored practice example';
+      const answer = $('.response-text', result);
+      if (simulated) answer.classList.add('callout');
+      answer.innerHTML = renderMarkdown(run.text);
+      $('details p', result).textContent = run.prompt;
+      $('#covid-results', exercise).prepend(result);
+      status.textContent = run.truncated ? 'Response ready. It reached the token limit and may be unfinished.' : 'Response ready below.';
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      for (const field of fields) form.elements[field].disabled = false;
+      updatePrompt();
+    }
+  });
+  updatePrompt();
+  $('#view').replaceChildren(exercise);
+}
 async function setView() {
   const version = ++loadingVersion;
   const requested = location.hash.slice(1);
-  state.view = ['lab', 'compare', 'budget', 'facilitator'].includes(requested) ? requested : 'lab';
+  state.view = ['lab', 'compare', 'ai-safety', 'budget', 'facilitator'].includes(requested) ? requested : 'lab';
   if (state.view === 'budget' && !state.adminToken) {
     state.view = 'facilitator';
     history.replaceState(null, '', '#facilitator');
@@ -332,6 +401,7 @@ async function setView() {
   renderHeader();
   if (state.view === 'lab') { renderLab(); try { await Promise.all([refreshHistory(), refreshGroup()]); } catch (e) { if (version === loadingVersion) toast(e.message, true); } }
   if (state.view === 'compare') { renderCompare(); try { await refreshGroup(); } catch (e) { if (version === loadingVersion) { $('#view').innerHTML = `<div class="empty-state"><h3>Could not load group responses.</h3><p>${esc(e.message)}</p><button class="button" data-action="refresh-group">Try again</button></div>`; } } }
+  if (state.view === 'ai-safety') renderAiSafety();
   if (state.view === 'facilitator') renderFacilitator();
   if (state.view === 'budget') $('#view').innerHTML = '<p class="busy"><span class="spinner"></span> Checking facilitator access…</p>';
   if (['facilitator', 'budget'].includes(state.view) && state.adminToken) {
@@ -446,7 +516,12 @@ document.addEventListener('click', async event => {
     if (action === 'reset-prompt') { delete state.drafts[draftKey()]; saveDrafts(); renderLab(); }
     if (action === 'copy-brief') await copy(briefForTopic(state.topic));
     if (action === 'run') { const prompt = $('#prompt').value.trim(); if (!prompt) throw new Error('Write a prompt before running it.'); state.drafts[draftKey()] = prompt; await execute([{ role: 'user', content: prompt }]); }
-    if (action === 'followup') { const run = state.runs.find(r => r.id === id); const prompt = button.closest('.followup-box').querySelector('textarea').value.trim(); if (!prompt) throw new Error('Write a follow-up first.'); await execute([...run.messages, { role: 'assistant', content: run.text }, { role: 'user', content: prompt }], run.model === 'Authored practice example' ? state.model : run.model, run.roleId); }
+    if (action === 'followup') {
+      const run = state.runs.find(r => r.id === id);
+      const prompt = button.closest('.followup-box').querySelector('textarea').value.trim();
+      if (!prompt) throw new Error('Write a follow-up first.');
+      await execute([...run.messages, { role: 'assistant', content: run.text }, { role: 'user', content: prompt }], modelById(run.model)?.id ?? state.model, run.roleId);
+    }
     if (action === 'other-model') {
       const run = state.runs.find(r => r.id === id);
       const otherModel = button.closest('.response-toolbar').querySelector('select').value;

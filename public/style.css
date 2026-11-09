@@ -112,6 +112,14 @@ main { padding-bottom: 2rem; }
 
 label { display: grid; gap: .35rem; font-weight: 600; }
 input, textarea, select { min-width: 0; width: 100%; background: var(--surface); border: 1px solid #bfcabf; border-radius: .4rem; padding: .45rem .65rem; }
+select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%23213e39' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-position: right .75rem center;
+  background-repeat: no-repeat;
+  background-size: .65rem auto;
+}
 label :is(input, textarea, select) { font-weight: 400; }
 textarea { display: block; resize: vertical; }
 #prompt { min-height: 9rem; }
@@ -232,6 +240,7 @@ dialog::backdrop { background: #172c2699; }
 .icon-button { font-size: 1.5rem; border: 0; background: transparent; padding: 0 .25rem; }
 dialog label { margin-bottom: .75rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: .65rem; }
+.covid-prompt-options { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: .65rem; }
 .form-error { color: #8d3429; margin-bottom: .5rem; }
 #practice-button { display: block; margin: .7rem auto 0; }
 .toast { position: fixed; bottom: .8rem; left: 50%; transform: translateX(-50%); z-index: 20; padding: .6rem .8rem; color: white; background: var(--ink); border-radius: .35rem; max-width: min(90vw, 32rem); opacity: 0; pointer-events: none; }
@@ -247,7 +256,7 @@ dialog label { margin-bottom: .75rem; }
 
 @media (max-width: 48rem) {
   .site-header, main { width: calc(100% - 1.5rem); }
-  .workspace-grid, .compare-grid, .budget-layout { grid-template-columns: minmax(0, 1fr); }
+  .workspace-grid, .compare-grid, .budget-layout, .covid-prompt-options { grid-template-columns: minmax(0, 1fr); }
   .fact-sheet { order: -1; }
   .facilitator-tab { margin-left: 0; }
   .admin-metrics { grid-template-columns: minmax(0, 1fr); }
@@ -262,4 +271,8 @@ dialog label { margin-bottom: .75rem; }
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation: none; }
+}
+
+@media (forced-colors: active) {
+  select { appearance: auto; background-image: none; }
 }

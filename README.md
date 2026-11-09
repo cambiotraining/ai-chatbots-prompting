@@ -43,12 +43,11 @@ The planning estimate assumes **10 groups × 24 calls per group = 240 calls**, a
 
 | Model | Estimated total | With 50% contingency |
 | --- | ---: | ---: |
-| GPT-4.1 mini | $0.83 | $1.24 |
 | GPT-4.1 | $4.13 | $6.19 |
 | GPT-5.6 Sol | $13.68 | $20.52 |
 | GPT-6 Luna | $0.24 | $0.36 |
 
-At the default maximum of 60 calls per group (600 total), those assumptions give $2.06 for GPT-4.1 mini, $10.32 for GPT-4.1, $34.20 for GPT-5.6 Sol, and $0.60 for GPT-6 Luna. You can change the number of groups, calls per group, and token assumptions in the planner.
+At the default maximum of 60 calls per group (600 total), those assumptions give $10.32 for GPT-4.1, $34.20 for GPT-5.6 Sol, and $0.60 for GPT-6 Luna. You can change the number of groups, calls per group, and token assumptions in the planner.
 
 Input tokens include the shared instructions and any conversation history. Follow-up questions, critiques, revisions, repeat runs, and model comparisons each count as another call. GPT-5.6 Sol and GPT-6 Luna run with low reasoning effort, and their reasoning tokens count toward the output cap and the estimated charge. The planner and spending ledger budget Sol at its pre-promotion rates of $5 per million input tokens and $30 per million output tokens. Check the OpenAI dashboard for actual charges. Rates checked on **9 November 2026**. [OpenAI pricing](https://developers.openai.com/api/docs/pricing)
 
@@ -60,7 +59,7 @@ After adding your key locally, you can choose to run:
 npm run pilot
 ```
 
-This is a real, paid test. It sends **at most five requests** through the workshop service code: four prompting strategies on mini, then the same minimal prompt on GPT-4.1. It uses a separate pilot ledger with a **$0.25 ceiling**, conservative reservations, and no automatic retries. Its report is saved to `work/pilot-report.json`; the report contains usage and timings, not the API key.
+This paid pilot sends **at most five requests** through the workshop service. It runs four prompting strategies on GPT-6 Luna, then repeats the minimal prompt on GPT-4.1. It uses a separate pilot ledger with a **$0.25 ceiling**, conservative reservations, and no automatic retries. Usage and timings are saved to `work/pilot-report.json`.
 
 The pilot reports measured input/output tokens, charges estimated from published rates, latency, truncation, and projections for 240 calls. It stops on a provider error. It does not read your account balance, validate forty-person concurrency, or test long follow-up histories. Look at your [OpenAI usage](https://platform.openai.com/usage), credit expiry, and [API rate limits](https://platform.openai.com/settings/organization/limits) separately.
 
@@ -70,7 +69,7 @@ For a workshop rehearsal, use a few browser profiles/devices to join different g
 
 - Default workshop ceiling: **$40**, leaving **$8** of your stated allowance outside this app's budget.
 - Maximum **60 API calls per group**, **four running calls per group**, and **1,400 output tokens per call** by default.
-- Allowlisted models are `gpt-4.1-mini-2025-04-14`, `gpt-4.1-2025-04-14`, `gpt-5.6-sol`, and `gpt-6-luna`. Model access depends on the OpenAI API project.
+- Allowlisted models are `gpt-4.1-2025-04-14`, `gpt-5.6-sol`, and `gpt-6-luna`. Model access depends on the OpenAI API project.
 - Input conversations are limited to 12,000 UTF-8 bytes and nine messages.
 - The service transactionally reserves a conservative upper-bound token cost **before** calling OpenAI. Concurrent requests cannot reserve the same remaining budget.
 - The reservation is replaced with an estimate based on returned usage and configured rates, including cached input when reported. The lab skips cache writes on GPT-5.6 Sol and GPT-6 Luna. Failed connections retain the conservative estimate because a charge may have occurred.
@@ -153,6 +152,12 @@ The comparison loads when opened. Use **Refresh responses** to check for updates
 The group rates four statements on a 1–5 agreement scale for each shared response. Comments are optional. Once all ratings are saved, the group can reveal the model, strategy, and total out of 20. When multiple responses are scored, the comparison highlights the highest score, including ties. Ratings lock after reveal.
 
 The facilitator can start a new comparison round while retaining run history and spending. Earlier ratings remain in the export on their original scale. A round revealed before the scale changed can be rescored by starting a new round and sharing the saved runs again.
+
+### COVID-19 and AI safety
+
+Open the **AI safety** tab for a five-minute exercise based on a fictional NHS sequencing report in England. Have participants choose a task, audience and response format, then run the prompt. Keep the same audience and format as they interpret the surveillance counts, run the refusal simulation, and reframe the question around evidence about an existing variant. Then change one prompt choice and compare the responses.
+
+In live mode, the workshop service builds the two surveillance prompts from the supplied choices and sends them to the selected model under the same budget and group call limits as the other activities. The simulated ChatGPT safety notice stays in the browser in both modes. Practice mode uses authored responses for all three tasks. Deploy the updated Worker alongside the site to enable live runs.
 
 ## What is hidden, recorded, and retained
 

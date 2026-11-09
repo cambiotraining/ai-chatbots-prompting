@@ -3,7 +3,6 @@ export const PRICE_SOURCE = 'https://developers.openai.com/api/docs/pricing';
 export const MAX_GROUPS = 10;
 export const MAX_SHARED_RESPONSES = 12;
 export const MODELS = [
-  { id: 'gpt-4.1-mini-2025-04-14', name: 'GPT-4.1 mini', input: 0.40, cached: 0.10, output: 1.60 },
   { id: 'gpt-4.1-2025-04-14', name: 'GPT-4.1', input: 2.00, cached: 0.50, output: 8.00 },
   // Use pre-promotion rates for Sol so the workshop budget does not depend on the discount.
   { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol', input: 5.00, cached: 0.50, output: 30.00, reasoningEffort: 'low' },

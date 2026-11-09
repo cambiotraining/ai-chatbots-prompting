@@ -1,5 +1,6 @@
 import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
 import { issueToken, verifyToken, equalSecret, isConfigured, readJson } from './security.mjs';
+import { COVID_TOPIC, liveCovidPrompt } from '../public/ai-safety.mjs';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -100,6 +101,14 @@ export class Workshop {
         return json({ token, session: { ...payload, groupName }, settings: this.settings() });
       }
       const session = await this.session(request);
+      if (path === '/ai-safety/run' && request.method === 'POST') {
+        if (session.admin) fail('Join a group to use the workshop tools.', 403);
+        const { task, audience, format, model = MODELS[0].id, requestId } = (await readJson(request, 2000)) ?? {};
+        const prompt = liveCovidPrompt({ task, audience, format });
+        if (!prompt) fail('Choose a surveillance task, audience and format from the exercise.');
+        const body = { model, strategyId: 'structured', messages: [{ role: 'user', content: prompt }], requestId };
+        return await this.run(body, session, COVID_TOPIC, groupScope(session.groupId, COVID_TOPIC.id));
+      }
       const topic = topicById(url.searchParams.get('topic') ?? DEFAULT_TOPIC_ID);
       if (!topic) fail('Choose an available research topic.');
       if (path === '/config' && request.method === 'GET') return json({ ...this.settings(), budget: this.publicBudget(await this.ledger()) });
@@ -109,7 +118,7 @@ export class Workshop {
       }
       if (session.admin) fail('Join a group to use the workshop tools.', 403);
       const scope = groupScope(session.groupId, topic.id);
-      if (path === '/run' && request.method === 'POST') return await this.run(request, session, topic, scope);
+      if (path === '/run' && request.method === 'POST') return await this.run(await readJson(request), session, topic, scope);
       if (path === '/mine' && request.method === 'GET') {
         const group = await this.group(scope);
         const runs = await this.loadRuns(group.ids);
@@ -167,8 +176,7 @@ export class Workshop {
     } catch (error) { return json({ error: error.status ? error.message : 'Something went wrong. Please try again.', ...(error.code ? { code: error.code } : {}) }, error.status || 500); }
   }
   async loadRuns(ids) { return (await Promise.all(ids.map(id => this.storage.get(`run:${id}`)))).filter(Boolean); }
-  async run(request, session, topic, scope) {
-    const body = await readJson(request);
+  async run(body, session, topic, scope) {
     const model = modelById(body.model);
     if (!model || !strategyById(body.strategyId)) fail('Choose an available model and prompting strategy.');
     const roleId = body.strategyId === 'role' ? body.roleId ?? DEFAULT_ROLE_ID : undefined;
@@ -186,7 +194,7 @@ export class Workshop {
       return json(this.runResult(existing), existing.status === 'pending' ? 202 : existing.status === 'failed' ? 409 : 200);
     }
     const settings = this.settings();
-    const instructions = instructionsForTopic(topic);
+    const instructions = topic.instructions ?? instructionsForTopic(topic);
     // One token per UTF-8 byte plus a framing margin is deliberately conservative.
     const inputCeiling = inputBytes + new TextEncoder().encode(instructions).length + 1024;
     const reservation = costMicros(model, { input_tokens: inputCeiling, output_tokens: settings.maxOutputTokens });
@@ -299,6 +307,7 @@ export class Workshop {
       const ratings = await this.storage.list({ prefix: 'ratings:' });
       const groupNames = await this.storage.list({ prefix: 'group-name:' });
       const topics = TOPICS.map(item => ({ id: item.id, name: item.name, instructions: instructionsForTopic(item), rubric: rubricForTopic(item) }));
+      topics.push(COVID_TOPIC);
       return json({ schemaVersion: 2, exportedAt: new Date().toISOString(), workshopId: this.env.WORKSHOP_ID, settings: this.settings(), ledger: await this.ledger(), instructions: topics[0].instructions, rubric: RUBRIC, ratingScale: RATING_SCALE, topics, groupNames: Object.fromEntries([...groupNames].map(([key, name]) => [key.slice('group-name:'.length), name])), runs: [...runs.values()].map(runDetails), ratings: Object.fromEntries(ratings) });
     }
     if (path === '/admin/delete' && request.method === 'POST') {

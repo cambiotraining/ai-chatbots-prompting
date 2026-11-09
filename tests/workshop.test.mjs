@@ -28,11 +28,54 @@ function fixture(overrides = {}) {
   return { env, storage, workshop, send, join, prompt, request, get calls() { return calls; } };
 }
 
+test('AI safety live runs only send server-built surveillance prompts', async () => {
+  const f = fixture({ MAX_CALLS_PER_GROUP: '3' });
+  const sent = [];
+  f.workshop.fetchOpenAI = async (_url, request) => {
+    sent.push(JSON.parse(request.body));
+    return new Response(JSON.stringify({ status: 'completed', usage, output: [{ type: 'message', content: [{ type: 'output_text', text: 'Review the sample selection.' }] }] }));
+  };
+  const { token } = await f.join();
+  const path = '/ai-safety/run';
+  const choices = { task: 'summarise', audience: 'public', format: 'bullets', requestId: crypto.randomUUID() };
+  const extraText = 'Free text supplied by the client.';
+  const retiredModel = 'gpt-4.1-mini-2025-04-14';
+
+  assert.equal((await f.send(path, choices)).status, 401);
+  for (const invalid of [{ task: 'refusal' }, { audience: extraText }, { format: extraText }, { model: retiredModel }]) {
+    assert.equal((await f.send(path, { ...choices, ...invalid }, token)).status, 400);
+  }
+  assert.equal((await f.send('/run', f.prompt({ model: retiredModel }), token)).status, 400);
+  assert.equal((await f.send('/run?topic=covid-surveillance', f.prompt(), token)).status, 400);
+  assert.equal(sent.length, 0);
+  assert.equal((await f.send('/config', undefined, token)).budget.calls, 0);
+
+  const summary = await f.send(path, { ...choices, messages: [{ role: 'user', content: extraText }] }, token);
+  assert.equal(summary.status, 200);
+  assert.equal(summary.run.topicId, 'covid-surveillance');
+  assert.equal(sent[0].model, MODELS[0].id);
+  assert.match(sent[0].instructions, /England.*NHS sites/);
+  assert.deepEqual(sent[0].input, [{ role: 'user', content: summary.run.prompt }]);
+  assert.match(summary.run.prompt, /Calculate the share.*members of the public.*short bullet points/);
+  assert.ok(!JSON.stringify(sent[0]).includes(extraText));
+
+  for (const model of ['gpt-5.6-sol', 'gpt-6-luna']) {
+    const reframe = await f.send(path, { ...choices, task: 'reframe', format: 'paragraph', model, requestId: crypto.randomUUID() }, token);
+    assert.equal(reframe.status, 200);
+    assert.equal(reframe.run.model, model);
+    assert.equal(sent.at(-1).model, model);
+    assert.match(sent.at(-1).input[0].content, /already circulating Variant A.*one short paragraph/);
+  }
+  assert.equal((await f.send(path, { ...choices, requestId: crypto.randomUUID() }, token)).status, 429);
+  assert.equal(sent.length, 3);
+  assert.equal((await f.send('/mine', undefined, token)).runs.length, 0);
+});
+
 test('cost calculations include cached input and match the ten-group planning example', () => {
-  assert.equal(costMicros(MODELS[0], usage), 1050);
+  assert.equal(costMicros(MODELS[0], usage), 5250);
   assert.equal(estimateBudget().requests, 240);
-  assert.ok(Math.abs(estimateBudget().total - 0.8256) < 1e-8);
-  assert.ok(Math.abs(estimateBudget({ model: MODELS[1] }).total - 4.128) < 1e-8);
+  assert.ok(Math.abs(estimateBudget().total - 4.128) < 1e-8);
+  assert.ok(Math.abs(estimateBudget({ model: MODELS[1] }).total - 13.68) < 1e-8);
 });
 test('Sol and Luna use the same brief and output cap, with low reasoning and model-specific cost estimates', async () => {
   const f = fixture();
@@ -135,7 +178,7 @@ test('one paid request settles reservations and a duplicate does not call OpenAI
   const duplicate = await f.send('/run', body, token);
   assert.equal(first.status, 200); assert.equal(duplicate.status, 200); assert.equal(f.calls, 1);
   const ledger = await f.workshop.ledger();
-  assert.equal(ledger.spentMicros, 1050); assert.equal(ledger.reservedMicros, 0); assert.equal(ledger.active[1], 0); assert.equal(ledger.calls[1], 1);
+  assert.equal(ledger.spentMicros, 5250); assert.equal(ledger.reservedMicros, 0); assert.equal(ledger.active[1], 0); assert.equal(ledger.calls[1], 1);
   assert.equal(first.run.messages[0].content, body.messages[0].content);
 });
 test('budget, model allowlist, conversation size and per-group cap are enforced before payment', async () => {
@@ -153,7 +196,7 @@ test('budget, model allowlist, conversation size and per-group cap are enforced 
   assert.equal(zero.calls, 0);
 });
 test('parallel requests reserve budget atomically, protecting the limit', async () => {
-  const f = fixture({ WORKSHOP_BUDGET_USD: '0.0047' }), { token } = await f.join();
+  const f = fixture({ WORKSHOP_BUDGET_USD: '0.024' }), { token } = await f.join();
   let release;
   const gate = new Promise(resolve => { release = resolve; });
   f.workshop.fetchOpenAI = async () => { await gate; return new Response(JSON.stringify({ output: [{ type: 'message', content: [{ type: 'output_text', text: 'test' }] }], usage })); };
@@ -350,7 +393,7 @@ test('ten groups can each submit four simultaneous requests with consistent acco
   const results = await Promise.all(sessions.flatMap(session => Array.from({ length: 4 }, () => f.send('/run', f.prompt(), session.token))));
   assert.ok(results.every(r => r.status === 200));
   const ledger = await f.workshop.ledger();
-  assert.equal(ledger.spentMicros, 40 * 1050); assert.equal(ledger.reservedMicros, 0);
+  assert.equal(ledger.spentMicros, 40 * 5250); assert.equal(ledger.reservedMicros, 0);
   for (let g = 1; g <= 10; g++) { assert.equal(ledger.calls[g], 4); assert.equal(ledger.active[g], 0); }
 });
 

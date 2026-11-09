@@ -22,11 +22,60 @@
     <nav class="tabs" aria-label="Workshop tools">
       <a href="#lab" data-view="lab" class="tab active">Workspace</a>
       <a href="#compare" data-view="compare" class="tab">Blind comparison <span class="count" id="comparison-count">0</span></a>
+      <a href="#ai-safety" data-view="ai-safety" class="tab">AI safety</a>
       <a href="#facilitator" data-view="facilitator" class="tab facilitator-tab">Facilitator</a>
     </nav>
     <div class="topic-picker" id="topic-picker"><label for="topic-select">Research topic</label><select id="topic-select"></select></div>
     <div id="view"></div>
   </main>
+  <template id="ai-safety-exercise">
+    <section aria-labelledby="ai-safety-title">
+      <header class="compare-top">
+        <div>
+          <p class="eyebrow">VIRAL GENOMICS / 5-MINUTE EXERCISE</p>
+          <h2 id="ai-safety-title">COVID-19 and AI safety</h2>
+          <p id="covid-brief"></p>
+        </div>
+      </header>
+      <p class="callout">Build and run a prompt for each of the three tasks. Keep the audience and format the same across tasks, then rerun a surveillance prompt with one choice changed.</p>
+      <form id="covid-prompt-form" class="panel">
+        <div class="covid-prompt-options">
+          <label>Task<select name="task"></select></label>
+          <label>Audience<select name="audience" required></select></label>
+          <label>Response format<select name="format" required></select></label>
+          <label>Model<select name="model"></select></label>
+        </div>
+        <label class="top-gap">Your prompt<textarea id="covid-prompt-preview" rows="4" readonly></textarea></label>
+        <div class="editor-actions">
+          <button type="submit" class="button primary" id="covid-run">Run prompt</button>
+          <p class="context-note" id="covid-mode"></p>
+        </div>
+      </form>
+      <p id="covid-status" role="status" class="top-gap"></p>
+      <div id="covid-results"></div>
+      <template id="covid-result">
+        <article class="response-panel">
+          <div class="section-top">
+            <h3></h3>
+            <span class="badge"></span>
+          </div>
+          <div class="response-text"></div>
+          <details class="privacy"><summary>See the prompt used for this run</summary><p></p></details>
+        </article>
+      </template>
+      <section class="panel" aria-labelledby="ai-safety-discuss">
+        <h3 id="ai-safety-discuss">Discuss as a group</h3>
+        <div class="response-text">
+          <ol>
+            <li>What could someone do with the answer to each request?</li>
+            <li>How does the third prompt turn the refused request into a public health question?</li>
+            <li>If a model declines a legitimate surveillance question, what context could you add to make the data and intended analysis clear?</li>
+          </ol>
+        </div>
+        <p class="fine-print"><a href="https://www.gov.uk/government/publications/sources-of-surveillance-data-for-influenza-covid-19-and-other-respiratory-viruses/data-quality-report-national-flu-and-covid-19-surveillance-report#whole-genome-sequencing-in-england" target="_blank" rel="noopener noreferrer">UKHSA background on SARS-CoV-2 genomic surveillance in England</a></p>
+      </section>
+    </section>
+  </template>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="connection-dialog" aria-labelledby="connection-title">
     <form id="connection-form"><div class="dialog-top"><h2 id="connection-title">Join workshop</h2><button type="button" class="icon-button" id="close-dialog" aria-label="Close">×</button></div><label>Workshop service URL<input type="url" name="apiBase" id="service-url" placeholder="https://prompting-lab-api.example.workers.dev" required></label><div id="group-fields"><div class="form-row"><label>Group number<select name="groupId" id="group-select"></select></label><label>Group name (optional)<input name="groupName" maxlength="32" autocomplete="off"></label></div><label>Workshop code<input name="code" type="password" autocomplete="off"></label></div><div id="admin-fields" hidden><label>Facilitator password<input name="adminToken" type="password" autocomplete="off"></label></div><p id="connection-error" class="form-error" role="alert"></p><button class="button primary full" type="submit" id="join-submit">Join workshop</button><p class="fine-print">Use the supplied fictional topics. The workshop service sends prompts to OpenAI and saves responses and ratings for your facilitator.</p><button type="button" class="text-button" id="practice-button">Continue in practice mode</button></form>
