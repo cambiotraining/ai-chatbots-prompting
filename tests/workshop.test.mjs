@@ -181,6 +181,17 @@ test('one paid request settles reservations and a duplicate does not call OpenAI
   assert.equal(ledger.spentMicros, 5250); assert.equal(ledger.reservedMicros, 0); assert.equal(ledger.active[1], 0); assert.equal(ledger.calls[1], 1);
   assert.equal(first.run.messages[0].content, body.messages[0].content);
 });
+test('the default OpenAI transport calls fetch with its Cloudflare-compatible receiver', async t => {
+  const f = fixture(), { token } = await f.join();
+  t.mock.method(globalThis, 'fetch', async function (url, request) {
+    assert.equal(this, globalThis);
+    return f.workshop.fetchOpenAI(url, request);
+  });
+  const workshop = new Workshop({ storage: f.storage }, f.env);
+  const response = await workshop.fetch(f.request('/run', f.prompt(), token));
+  assert.equal(response.status, 200);
+  assert.equal(f.calls, 1);
+});
 test('budget, model allowlist, conversation size and per-group cap are enforced before payment', async () => {
   const f = fixture({ WORKSHOP_BUDGET_USD: '0.000001' }), { token } = await f.join();
   assert.equal((await f.send('/run', f.prompt(), token)).status, 402);

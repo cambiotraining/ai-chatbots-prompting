@@ -56,7 +56,7 @@ export class Workshop {
     this.ctx = ctx;
     this.env = env;
     this.storage = ctx.storage;
-    this.fetchOpenAI = fetch;
+    this.fetchOpenAI = fetch.bind(globalThis);
     this.joinAttempts = new Map();
   }
   settings() {

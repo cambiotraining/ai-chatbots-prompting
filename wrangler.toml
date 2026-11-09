@@ -4,7 +4,7 @@ compatibility_date = "2026-11-01"
 
 [vars]
 # Change to your exact GitHub Pages origin, WITHOUT the repository path.
-ALLOWED_ORIGINS = "http://localhost:4173,http://127.0.0.1:4173"
+ALLOWED_ORIGINS = "https://cambiotraining.github.io"
 WORKSHOP_BUDGET_USD = "40"
 GROUP_COUNT = "10"
 MAX_CALLS_PER_GROUP = "60"
