@@ -119,6 +119,17 @@ export class Demo {
       this.save(topic, state);
       return { ok: true };
     }
+    if (path === '/ratings/reset' || path === '/unpublish') {
+      const { runId, round } = body;
+      if (typeof runId !== 'string' || !runId) throw new Error('Choose a response in this comparison.');
+      if (round !== 0) throw new Error('This comparison round has changed. Refresh responses and try again.');
+      if (state.revealed) throw new Error('Reset the practice round before changing this comparison.');
+      if (!state.published.includes(runId)) return { ok: true };
+      delete state.ratings[runId];
+      if (path === '/unpublish') state.published = state.published.filter(id => id !== runId);
+      this.save(topic, state);
+      return { ok: true };
+    }
     if (path === '/reveal') {
       if (!state.published.length || !state.published.every(id => validScores(state.ratings[id]?.scores))) throw new Error('Save a rating for every shared response before revealing.');
       state.revealed = true;

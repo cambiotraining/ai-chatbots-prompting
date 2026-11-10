@@ -84,18 +84,8 @@ function strategyLabel(run) {
   const role = expertRoleById(run.roleId);
   return role ? `${type} · ${role.name}` : type;
 }
-function modelOptions(current = state.model, excludedModel) {
-  return MODELS.filter(model => model.id !== excludedModel)
-    .map(model => `<option value="${model.id}"${current === model.id ? ' selected' : ''}>${model.name}</option>`)
-    .join('');
-}
-
-function comparisonControls(run) {
-  const originalModel = run.requestedModel || run.model;
-  return `<label class="model-label">COMPARE WITH
-    <select>${modelOptions(state.model, originalModel)}</select>
-  </label>
-  <button class="button small" data-action="other-model" data-id="${esc(run.id)}" ${state.busy ? 'disabled' : ''}>Run same input →</button>`;
+function modelOptions(current = state.model) {
+  return MODELS.map(model => `<option value="${model.id}"${current === model.id ? ' selected' : ''}>${model.name}</option>`).join('');
 }
 function renderLab() {
   const topic = state.topic;
@@ -159,7 +149,12 @@ function historyMarkup() {
     const role = expertRoleById(r.roleId);
     const responseLabel = role ? `${modelName} · ${role.name}` : modelName;
     const meta = r.usage ? `${r.usage.input_tokens.toLocaleString()} input / ${r.usage.output_tokens.toLocaleString()} output tokens · ${money(r.costMicros / 1e6, 4)} · ${(r.latencyMs / 1000).toFixed(1)}s` : state.mode === 'demo' ? 'Authored example · No API call or cost' : r.status === 'pending' ? 'Request still running · Refresh shortly' : 'Usage could not be confirmed';
-    const content = `<div class="response-panel" data-run="${esc(r.id)}"><div class="section-top"><h3>${r.status === 'pending' ? 'Request in progress' : r.status === 'failed' ? 'Request incomplete' : `Response · turn ${r.turn}`}</h3><span class="badge">${esc(responseLabel)}</span></div>${r.error ? `<div class="callout warning">${esc(r.error)}</div>` : ''}${r.truncated ? '<div class="callout warning">The response reached its token limit and may be unfinished. Consider a shorter requested answer.</div>' : ''}<div class="response-text">${renderMarkdown(r.text)}</div><div class="response-meta">${esc(meta)}</div><details class="privacy"><summary>View prompt and context</summary><pre class="prompt-context">${esc(r.instructions ?? instructionsForTopic(state.topic))}</pre>${r.messages.map(m => `<p><strong>${esc(m.role)}</strong><br>${esc(m.content).replace(/\n/g, '<br>')}</p>`).join('')}</details>${r.status === 'complete' ? `<div class="response-toolbar"><div class="button-row"><button class="button small primary" data-action="publish" data-id="${esc(r.id)}" ${isShared || state.group?.revealed ? 'disabled' : ''}>${isShared ? 'Shared with group ✓' : 'Share for comparison →'}</button>${comparisonControls(r)}<button class="button small" data-action="export-run" data-id="${esc(r.id)}">Export</button></div></div><details class="followup-box" ${i === 0 && ['clarify', 'critique'].includes(strategy.id) ? 'open' : ''}><summary>${strategy.id === 'clarify' ? 'Continue: respond to the questions' : strategy.id === 'critique' ? 'Continue: critique & revise' : 'Continue this conversation'}</summary><label for="followup-${i}" class="sr-only">Follow-up prompt</label><textarea id="followup-${i}" class="followup-input" maxlength="4000">${esc(strategy.followup)}</textarea><div class="button-row top-gap"><button class="button small" data-action="followup" data-id="${esc(r.id)}" ${state.busy ? 'disabled' : ''}>${state.mode === 'demo' ? 'Load follow-up example' : 'Send follow-up'} →</button></div><p class="context-note">Each follow-up includes the shared research brief and the conversation above. Share the final response when you are ready. Extra turns use more time and tokens.</p></details>` : ''}</div>`;
+    const content = `<div class="response-panel" data-run="${esc(r.id)}"><div class="section-top"><h3>${r.status === 'pending' ? 'Request in progress' : r.status === 'failed' ? 'Request incomplete' : `Response · turn ${r.turn}`}</h3><span class="badge">${esc(responseLabel)}</span></div>${r.error ? `<div class="callout warning">${esc(r.error)}</div>` : ''}${r.truncated ? '<div class="callout warning">The response reached its token limit and may be unfinished. Consider a shorter requested answer.</div>' : ''}<div class="response-text">${renderMarkdown(r.text)}</div><div class="response-meta">${esc(meta)}</div><details class="privacy"><summary>View prompt and context</summary><pre class="prompt-context">${esc(r.instructions ?? instructionsForTopic(state.topic))}</pre>${r.messages.map(m => `<p><strong>${esc(m.role)}</strong><br>${esc(m.content).replace(/\n/g, '<br>')}</p>`).join('')}</details>
+      ${r.status === 'complete' ? `<div class="response-toolbar button-row">
+        <button class="button small primary" data-action="publish" data-id="${esc(r.id)}" ${isShared || state.group?.revealed ? 'disabled' : ''}>${isShared ? 'Added to comparison ✓' : 'Add to comparison'}</button>
+        <button class="button small" data-action="export-run" data-id="${esc(r.id)}">Export</button>
+        <button class="button small" data-action="back-to-top">Back to top ↑</button>
+      </div><details class="followup-box" ${i === 0 && ['clarify', 'critique'].includes(strategy.id) ? 'open' : ''}><summary>${strategy.id === 'clarify' ? 'Continue: respond to the questions' : strategy.id === 'critique' ? 'Continue: critique & revise' : 'Continue this conversation'}</summary><label for="followup-${i}" class="sr-only">Follow-up prompt</label><textarea id="followup-${i}" class="followup-input" maxlength="4000">${esc(strategy.followup)}</textarea><div class="button-row top-gap"><button class="button small" data-action="followup" data-id="${esc(r.id)}" ${state.busy ? 'disabled' : ''}>${state.mode === 'demo' ? 'Load follow-up example' : 'Send follow-up'} →</button></div><p class="context-note">Each follow-up includes the shared research brief and the conversation above. Add the final response to the comparison when you are ready. Extra turns use more time and tokens.</p></details>` : ''}</div>`;
     return i === 0 ? content : `<details><summary class="text-button">Earlier run · ${esc(responseLabel)} · turn ${r.turn}</summary>${content}</details>`;
   }).join('');
 }
@@ -216,6 +211,7 @@ function ratingMarkup(row) {
          <div class="button-row">
            <button type="button" class="text-button" data-action="capture-quote" data-id="${esc(row.id)}">＋ Add selected text</button>
            <button class="button small" type="submit">${saved ? 'Update rating' : 'Save rating'}</button>
+           <button type="button" class="button small" data-action="reset-rating" data-id="${esc(row.id)}" aria-label="Reset rating for ${esc(row.label)}">Reset rating</button>
          </div>
          <p class="context-note">${saved ? 'Rating saved ✓' : 'Rating pending'}</p>`}
   </form>`;
@@ -231,7 +227,10 @@ function comparisonCard(row, revealed, bestScore, bestCount) {
       ${hasTotal ? `<div class="score-summary">
         <strong>Total ${row.totalScore} / ${MAX_RATING_TOTAL}</strong>
         ${highest ? `<span class="badge score-badge">${bestCount > 1 ? 'Joint highest score' : 'Highest score'}</span>` : ''}
-      </div>` : `<span class="blind-indicator">${revealed ? 'Revealed' : 'Labels hidden'}</span>`}
+      </div>` : `<div class="button-row">
+        <span class="blind-indicator">${revealed ? 'Revealed' : 'Labels hidden'}</span>
+        ${revealed ? '' : `<button type="button" class="text-button" data-action="remove-comparison" data-id="${esc(row.id)}" aria-label="Remove from comparison (${esc(row.label)})">Remove from comparison</button>`}
+      </div>`}
     </div>
     ${row.truncated ? '<div class="callout warning">This response reached its token limit.</div>' : ''}
     ${revealed ? `<div class="reveal-info">
@@ -260,7 +259,7 @@ function renderCompare() {
   $('#view').innerHTML = `<div class="compare-top">
     <div>
       <p class="eyebrow">${esc(groupTitle)} / ${group.revealed ? 'IDENTITIES REVEALED' : 'IDENTITIES HIDDEN'}</p>
-      <h2>Blind comparison</h2>
+      <h2 id="comparison-title" tabindex="-1">Blind comparison</h2>
       ${group.revealed ? '' : '<p>Score each response before revealing the model and strategy.</p>'}
     </div>
     <div class="button-row">
@@ -275,7 +274,7 @@ function renderCompare() {
   ${group.revealed ? '' : `<div class="comparison-footer">
     <p>Ratings saved for ${ratedCount} of ${rows.length} responses.</p>
     <button class="button primary" data-action="reveal" ${ratedCount < rows.length ? 'disabled' : ''}>Reveal strategies, models & scores →</button>
-  </div>`}` : '<div class="empty-state"><p>Shared responses for this topic will appear here. Use “Share for comparison” in the workspace.</p></div>'}`;
+  </div>`}` : '<div class="empty-state"><p>Use “Add to comparison” in the workspace to add a response for this topic.</p></div>'}`;
 }
 
 function captureRatingDraft(form) {
@@ -292,7 +291,11 @@ async function refreshGroup() {
   if (version !== loadingVersion) return;
   if ((group.topicId ?? DEFAULT_TOPIC_ID) !== state.topic.id) throw new Error('Update the workshop service to use this research topic.');
   const sameRound = state.group && state.group.round === group.round;
-  if (!sameRound) state.ratingsDraft = {};
+  if (!sameRound || group.revealed) state.ratingsDraft = {};
+  else {
+    const responseIds = new Set(group.responses.map(row => row.id));
+    for (const id of Object.keys(state.ratingsDraft)) if (!responseIds.has(id)) delete state.ratingsDraft[id];
+  }
   state.group = group; renderHeader();
   if (state.view === 'compare') renderCompare();
 }
@@ -522,22 +525,37 @@ document.addEventListener('click', async event => {
       if (!prompt) throw new Error('Write a follow-up first.');
       await execute([...run.messages, { role: 'assistant', content: run.text }, { role: 'user', content: prompt }], modelById(run.model)?.id ?? state.model, run.roleId);
     }
-    if (action === 'other-model') {
-      const run = state.runs.find(r => r.id === id);
-      const otherModel = button.closest('.response-toolbar').querySelector('select').value;
-      state.model = otherModel;
-      await execute(run.messages, otherModel, run.roleId);
+    if (action === 'back-to-top') {
+      $('.site-header h1 a').focus({ preventScroll: true });
+      window.scrollTo(0, 0);
     }
     if (action === 'refresh-history') { await refreshHistory(); toast('History refreshed.'); }
     if (action === 'publish') {
       await api('/publish', { runId: id });
       button.disabled = true;
-      button.textContent = 'Shared with group ✓';
+      button.textContent = 'Added to comparison ✓';
       await refreshGroup();
       toast('Added to Blind comparison.');
     }
     if (action === 'export-run') { const run = state.runs.find(r => r.id === id); download('prompting-lab-run.json', { schemaVersion: 1, mode: state.mode, ...run }); }
     if (action === 'refresh-group') { await refreshGroup(); toast('Group responses refreshed.'); }
+    if (action === 'reset-rating' || action === 'remove-comparison') {
+      const remove = action === 'remove-comparison';
+      const card = button.closest('.compare-card');
+      const focusCard = remove ? card.nextElementSibling ?? card.previousElementSibling : card;
+      const version = loadingVersion;
+      button.disabled = true;
+      try {
+        await api(remove ? '/unpublish' : '/ratings/reset', { runId: id, round: state.group.round });
+        if (version !== loadingVersion) return;
+        delete state.ratingsDraft[id];
+        await refreshGroup();
+        if (version !== loadingVersion) return;
+        const nextControl = focusCard && $(`[data-response="${CSS.escape(focusCard.dataset.response)}"] [data-action="${action}"]`);
+        (nextControl || $('#comparison-title'))?.focus();
+        toast(remove ? 'Response removed from comparison.' : 'Rating reset.');
+      } finally { button.disabled = false; }
+    }
     if (action === 'capture-quote') {
       const selection = window.getSelection(); const card = button.closest('.compare-card');
       if (!selection?.toString().trim() || !card.querySelector('.comparison-answer').contains(selection.anchorNode)) throw new Error('First select a passage in this response, then choose “Add selected text”.');

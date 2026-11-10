@@ -139,17 +139,17 @@ The cards are numbered in this order: Zero-shot prompting, Context, Role, Socrat
 | --- | --- |
 | 0–2 min | Join one shared workspace per group, read the brief together, and choose strategies to compare. |
 | 2–5 min | Edit and run prompts. Clarification and critique strategies need a follow-up to complete their workflow. |
-| 5–9 min | Share the responses the group wants to compare. Agree on ratings for each anonymous answer, with comments or quotes if useful. |
+| 5–9 min | Use **Add to comparison** for the responses the group wants to compare. Agree on ratings for each anonymous answer, with comments or quotes if useful. |
 | 9–12 min | Save all ratings; agree as a group; reveal strategies and models. Optionally rerun an exact input on the other model. |
 | 12–15 min | Discuss an improvement, a remaining weakness, and a claim needing independent verification. |
 
 Use **one model across the group first** to compare prompting strategies. Change models only when holding the input fixed. The activity compares workflows, so extra turns, extra tokens, and answer length are part of the discussion, not proof that one prompt is universally superior.
 
-Each distinct response a group shares is added to the comparison for the current topic. A comparison can hold up to 12 shared responses. The comparison starts empty in live mode, and a new practice round starts with one authored example per strategy. The group sees the responses in random order. Labels can shift as responses are added, while ratings stay attached to the same response.
+Each distinct response a group adds appears in the comparison for the current topic. A comparison can hold up to 12 responses. The comparison starts empty in live mode, and a new practice round starts with one authored example per strategy. The group sees the responses in random order. Labels can shift as responses are added or removed, while ratings stay attached to the same response.
 
 The comparison loads when opened. Use **Refresh responses** to check for updates from another browser. The facilitator can use **Refresh status** for the latest workshop totals.
 
-The group rates four statements on a 1–5 agreement scale for each shared response. Comments are optional. Once all ratings are saved, the group can reveal the model, strategy, and total out of 20. When multiple responses are scored, the comparison highlights the highest score, including ties. Ratings lock after reveal.
+The group rates four statements on a 1–5 agreement scale for each shared response. Comments are optional. Before reveal, **Reset rating** clears a response’s scores and comment, and **Remove from comparison** also takes the response out of the round while keeping its run in the workspace. Once all ratings are saved, the group can reveal the model, strategy, and total out of 20. When multiple responses are scored, the comparison highlights the highest score, including ties. The round locks after reveal.
 
 The facilitator can start a new comparison round while retaining run history and spending. Earlier ratings remain in the export on their original scale. A round revealed before the scale changed can be rescored by starting a new round and sharing the saved runs again.
 

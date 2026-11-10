@@ -157,7 +157,6 @@ details p { margin: .65rem 0 0; }
 
 .response-panel { margin-bottom: .7rem; }
 .response-toolbar { margin-top: .75rem; }
-.response-toolbar .button-row { align-items: end; }
 .response-text { line-height: 1.6; overflow-wrap: anywhere; overflow-x: auto; }
 .response-text :is(h1, h2, h3, h4, h5, h6) { font-size: 1.12rem; margin: 1em 0 .4em; }
 .response-text h1, .response-text h2 { font-size: 1.25rem; }

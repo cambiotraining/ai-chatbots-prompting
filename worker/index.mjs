@@ -161,6 +161,27 @@ export class Workshop {
         });
         return json({ ok: true });
       }
+      if ((path === '/ratings/reset' || path === '/unpublish') && request.method === 'POST') {
+        const { runId, round } = (await readJson(request, 1000)) ?? {};
+        if (typeof runId !== 'string' || !runId) fail('Choose a response in this comparison.');
+        await this.storage.transaction(async tx => {
+          const group = await this.group(scope, tx);
+          if (round !== (group.round || 0)) fail('This comparison round has changed. Refresh responses and try again.', 409);
+          if (group.revealed) fail('This comparison has already been revealed. Ask the facilitator to start another round.', 409);
+          if (!group.published.includes(runId)) return;
+          const key = groupRatingsKey(scope, group.round);
+          const ratings = await tx.get(key) || {};
+          if (Object.hasOwn(ratings, runId)) {
+            delete ratings[runId];
+            await tx.put(key, ratings);
+          }
+          if (path === '/unpublish') {
+            group.published = group.published.filter(id => id !== runId);
+            await tx.put(`group:${scope}`, group);
+          }
+        });
+        return json({ ok: true });
+      }
       if (path === '/reveal' && request.method === 'POST') {
         await this.storage.transaction(async tx => {
           const group = await this.group(scope, tx);
