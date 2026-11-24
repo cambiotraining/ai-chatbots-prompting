@@ -118,8 +118,8 @@ function renderLab() {
             </button>
           </div>
           <details class="privacy">
-            <summary>See exactly what the model receives</summary>
-            <pre class="prompt-context">${esc(instructionsForTopic(topic))}</pre>
+            <summary>Preview the model instructions</summary>
+            <pre class="prompt-context" id="prompt-instructions">${esc(instructionsForTopic(topic, state.group?.answerLengthTarget))}</pre>
             <p>Your prompt follows these instructions. Follow-ups also include earlier messages in the conversation.</p>
           </details>
         </section>
@@ -298,6 +298,7 @@ async function refreshGroup() {
   }
   state.group = group; renderHeader();
   if (state.view === 'compare') renderCompare();
+  if (state.view === 'lab') $('#prompt-instructions').textContent = instructionsForTopic(state.topic, group.answerLengthTarget);
 }
 function renderBudget() {
   $('#view').innerHTML = `<div class="section-top"><div><p class="eyebrow">PLAN FOR TEN GROUPS / $48 AVAILABLE</p><h2>Budget planner</h2></div><a class="button small" href="#facilitator">Back to workshop status</a></div><div class="budget-layout"><section class="panel"><h3>Set your workshop assumptions</h3><div class="budget-controls"><label>Groups<input id="plan-groups" type="number" min="1" max="${MAX_GROUPS}" value="${planner.groups}"></label><label>API calls per group<input id="plan-calls" type="number" min="1" max="100" value="${planner.calls}"></label><label>Model<select id="plan-model">${modelOptions(planner.model.id)}</select></label><label>Average input tokens per call<input id="plan-inputTokens" type="number" min="100" max="20000" step="100" value="${planner.inputTokens}"></label><label>Average output tokens per call<input id="plan-outputTokens" type="number" min="100" max="2000" step="100" value="${planner.outputTokens}"></label></div><p class="fine-print">Count each question, follow-up, critique, repeat, and model comparison as a separate call. Input includes the fact sheet, instructions, prompt, and any conversation history. Output tokens include the visible answer and any reasoning tokens.</p><div class="callout warning">This planner estimates token charges. It cannot check your actual OpenAI credit balance, model access, or simultaneous-request limits.</div></section><section class="panel"><span class="eyebrow">ESTIMATED WORKSHOP COST</span><div id="budget-result"></div></section></div><section class="panel budget-scenarios"><h3>What would ten groups cost?</h3><div class="table-wrap"><table><thead><tr><th>Scenario</th><th>Total calls</th>${MODELS.map(model => `<th scope="col">${model.name}</th>`).join('')}</tr></thead><tbody>${[['Core activity', 8], ['Exploration', 24], ['Maximum group allowance', 60]].map(([label, calls]) => `<tr><td>${label} · ${calls} calls/group</td><td>${MAX_GROUPS * calls}</td>${MODELS.map(model => `<td>${money(estimateBudget({ groups: MAX_GROUPS, calls, inputTokens: 3000, outputTokens: 1400, model }).total)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="fine-print">Assumes 3,000 input and 1,400 output tokens per call. Estimates use standard uncached rates. GPT-5.6 Sol is budgeted at pre-promotion rates. Rates checked ${PRICE_DATE}: <a href="${PRICE_SOURCE}" target="_blank" rel="noreferrer">OpenAI pricing</a>. Cloudflare hosting charges, if any, are separate.</p></section>`;
@@ -317,6 +318,21 @@ function renderFacilitator() {
   const data = state.admin;
   if (!data) { $('#view').innerHTML = '<p class="busy"><span class="spinner"></span> Loading workshop status…</p>'; return; }
   $('#view').innerHTML = `<div class="section-top"><div><p class="eyebrow">LIVE WORKSHOP / FACILITATOR</p><h2>Workshop status</h2><p>Token costs are estimated from reported API usage and configured rates. Requests with uncertain usage retain their conservative estimate.</p></div><button class="text-button" data-action="admin-disconnect">Disconnect facilitator</button></div><div class="admin-metrics"><div class="metric"><span>Estimated spend</span><strong>${money(data.budget.spent, 4)}</strong></div><div class="metric"><span>Reserved for running requests</span><strong>${money(data.budget.reserved, 4)}</strong></div><div class="metric"><span>Workshop spending ceiling</span><strong>${money(data.budget.limit)}</strong></div></div><div class="panel"><div class="section-top"><h3>Group progress</h3><span class="badge${data.budget.paused ? ' orange' : ''}">${data.budget.paused ? 'Requests paused' : 'Requests open'}</span></div><div class="table-wrap"><table><thead><tr><th>Group</th><th>Calls used (all topics)</th><th>Running (all topics)</th><th>Shared</th><th>Comparison</th><th>New round</th></tr></thead><tbody>${data.groups.map(g => `<tr><td>${esc(groupLabel(g.id, g.name))}</td><td>${g.calls} / ${data.settings.maxCallsPerGroup}</td><td>${g.active}</td><td>${g.shared}</td><td>${g.revealed ? 'Revealed' : 'Blind'}</td><td><button class="text-button" data-action="new-round" data-id="${g.id}">Start fresh</button></td></tr>`).join('')}</tbody></table></div><div class="admin-actions"><a class="button" href="#budget">Budget planner</a><button class="button primary" data-action="pause">${data.budget.paused ? 'Resume requests' : 'Pause new requests'}</button><button class="button" data-action="admin-refresh">Refresh status</button><button class="button" data-action="export-all">Export workshop JSON</button></div><p class="fine-print">${data.failedCalls} failed or interrupted call(s). Spending here is a local token-cost ledger, not your OpenAI account balance. Other apps can use the same credits. Check <a href="https://platform.openai.com/usage" target="_blank" rel="noreferrer">OpenAI usage</a> and <a href="https://platform.openai.com/settings/organization/limits" target="_blank" rel="noreferrer">rate limits</a> before the workshop.</p><details class="privacy"><summary>Data retention and cleanup</summary><p>The service stores fictional prompts, responses, group names, ratings, and usage. Export before deleting if you want to retain workshop findings. Deleting responses preserves spending and call counts so the financial limit remains in force.</p><button class="button small danger" data-action="delete-data">Delete responses & ratings</button></details></div>`;
+  if (Number.isSafeInteger(data.answerLengthTarget)) {
+    $('#view').insertAdjacentHTML('beforeend', `<section class="panel top-gap admin-empty" aria-labelledby="answer-length-title">
+      <h3 id="answer-length-title">Answer length</h3>
+      <form id="answer-length-form" data-workshop-id="${esc(data.workshopId)}">
+        <div class="button-row">
+          <label>Target characters
+            <input type="number" name="answerLengthTarget" value="${data.answerLengthTarget}" min="1" step="1" required aria-describedby="answer-length-help">
+          </label>
+        </div>
+        <p id="answer-length-help" class="fine-print">Applies to new answers across this workshop. Completed answers may be longer.</p>
+        <p class="form-error" role="alert"></p>
+        <button class="button primary small" type="submit">Save answer length</button>
+      </form>
+    </section>`);
+  }
   $('#view').insertAdjacentHTML('beforeend', `<section class="panel new-workshop-panel" aria-labelledby="new-workshop-title">
     <h3 id="new-workshop-title">Start a new workshop</h3>
     <p>Current workshop ID <code>${esc(data.workshopId)}</code></p>
@@ -521,6 +537,28 @@ document.addEventListener('change', event => {
   const form = event.target.closest('.rating-form'); if (form) captureRatingDraft(form);
 });
 document.addEventListener('submit', async event => {
+  if (event.target.id === 'answer-length-form') {
+    event.preventDefault();
+    const form = event.target;
+    const submit = $('button[type="submit"]', form);
+    const field = form.elements.answerLengthTarget;
+    const errorMessage = $('.form-error', form);
+    if (submit.disabled) return;
+    const workshopId = form.dataset.workshopId;
+    const answerLengthTarget = field.valueAsNumber;
+    submit.disabled = field.disabled = true;
+    errorMessage.textContent = '';
+    try {
+      const saved = await api('/admin/answer-length', { workshopId, answerLengthTarget }, true);
+      if (state.admin?.workshopId === workshopId) state.admin.answerLengthTarget = saved.answerLengthTarget;
+      toast(`Answer length target saved at ${saved.answerLengthTarget.toLocaleString('en-GB')} characters.`);
+    } catch (error) {
+      errorMessage.textContent = error.message;
+    } finally {
+      submit.disabled = field.disabled = false;
+    }
+    return;
+  }
   if (event.target.id === 'new-workshop-form') {
     event.preventDefault();
     const form = event.target;

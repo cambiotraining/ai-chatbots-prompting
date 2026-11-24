@@ -57,14 +57,16 @@ export function briefForTopic(topic) {
   return `${topic.question}\n\n${topic.facts.map(fact => `- ${fact}`).join('\n')}`;
 }
 
-export const ANSWER_LENGTH_INSTRUCTIONS = 'Focus on the most important points and aim for around 1,200 characters, including spaces and Markdown. Use one short paragraph or a few short bullets and finish your last thought.';
+export const DEFAULT_ANSWER_LENGTH_TARGET = 1200;
 const openingInstructions = 'You are assisting a life-sciences workshop. Use the shared fictional scenario below for every strategy. Respond with a high-level study design or the requested critique/questions.';
 const evidenceInstructions = 'Do not invent experimental evidence, references, or numeric justifications.';
 const closingInstructions = 'All responses are educational proposals for expert review, not validated protocols. No web search or other tools are available.';
 export const LEGACY_MOUSE_INSTRUCTIONS = `${openingInstructions} Keep responses under 500 words. ${evidenceInstructions} ${mouseTopic.guidance} ${closingInstructions}\n\nSHARED SCENARIO\n${briefForTopic(mouseTopic)}`;
 
-export function instructionsForTopic(topic) {
-  return `${openingInstructions} ${evidenceInstructions} ${topic.guidance} ${closingInstructions}\n\nAlways return Markdown, including for clarification questions and follow-ups. ${ANSWER_LENGTH_INSTRUCTIONS} Write the Markdown directly and leave the overall answer outside code fences.\n\nSHARED SCENARIO\n${briefForTopic(topic)}`;
+export function instructionsForTopic(topic, answerLengthTarget = DEFAULT_ANSWER_LENGTH_TARGET) {
+  const lengthGuidance = `Focus on the most important points and aim for around ${answerLengthTarget.toLocaleString('en-GB')} characters, including spaces and Markdown. Keep the answer easy to scan and finish your last thought.`;
+  if (topic.instructions) return `${topic.instructions}\n\n${lengthGuidance}`;
+  return `${openingInstructions} ${evidenceInstructions} ${topic.guidance} ${closingInstructions}\n\nAlways return Markdown, including for clarification questions and follow-ups. ${lengthGuidance} Write the Markdown directly and leave the overall answer outside code fences.\n\nSHARED SCENARIO\n${briefForTopic(topic)}`;
 }
 export const STRATEGIES = [
   {

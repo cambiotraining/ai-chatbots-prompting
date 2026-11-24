@@ -1,4 +1,4 @@
-import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
+import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, DEFAULT_ANSWER_LENGTH_TARGET, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
 import { issueToken, verifyToken, equalSecret, workshopCodeDigest, isConfigured, readJson } from './security.mjs';
 import { COVID_TOPIC, liveCovidPrompt } from '../public/ai-safety.mjs';
 import { WorkshopStorage } from './workshop-storage.mjs';
@@ -69,6 +69,7 @@ export class Workshop {
   async ledger(tx = this.storage) { return await tx.get('ledger') || { spentMicros: 0, reservedMicros: 0, calls: {}, active: {}, paused: false, startedAt: new Date().toISOString(), failedCalls: 0 }; }
   async group(scope, tx = this.storage) { return await tx.get(`group:${scope}`) || { ids: [], published: [], revealed: false, round: 0 }; }
   async groupName(groupId) { return await this.storage.get(`group-name:${groupId}`) || ''; }
+  async answerLengthTarget() { return await this.storage.get('answer-length-target') ?? DEFAULT_ANSWER_LENGTH_TARGET; }
   async session(request) {
     const token = request.headers.get('Authorization')?.replace(/^Bearer /, '') || '';
     if (await equalSecret(token, this.env.ADMIN_TOKEN)) return { admin: true };
@@ -186,7 +187,7 @@ export class Workshop {
         const group = await this.group(scope);
         const runs = await this.loadRuns(group.published);
         const ratings = await this.storage.get(groupRatingsKey(scope, group.round)) || {};
-        return json({ groupId: session.groupId, groupName: await this.groupName(session.groupId), topicId: topic.id, round: group.round || 0, revealed: group.revealed, responses: comparisonRows(runs, group.revealed, ratings), ratings, budget: this.publicBudget(await this.ledger()) });
+        return json({ groupId: session.groupId, groupName: await this.groupName(session.groupId), topicId: topic.id, round: group.round || 0, revealed: group.revealed, responses: comparisonRows(runs, group.revealed, ratings), ratings, answerLengthTarget: await this.answerLengthTarget(), budget: this.publicBudget(await this.ledger()) });
       }
       if (path === '/publish' && request.method === 'POST') {
         const { runId } = await readJson(request, 1000);
@@ -273,7 +274,7 @@ export class Workshop {
       return json(this.runResult(existing), existing.status === 'pending' ? 202 : existing.status === 'failed' ? 409 : 200);
     }
     const settings = this.settings();
-    const instructions = topic.instructions ?? instructionsForTopic(topic);
+    const instructions = instructionsForTopic(topic, await this.answerLengthTarget());
     // One token per UTF-8 byte plus a framing margin is deliberately conservative.
     const inputCeiling = inputBytes + new TextEncoder().encode(instructions).length + 1024;
     const reservation = costMicros(model, { input_tokens: inputCeiling, output_tokens: settings.maxOutputTokens });
@@ -389,7 +390,14 @@ export class Workshop {
         const group = await this.group(groupScope(id, topic.id));
         return { id, name: await this.groupName(id), calls: ledger.calls[id] || 0, active: ledger.active[id] || 0, shared: group.published.length, revealed: group.revealed };
       }));
-      return json({ workshopId: this.workshopId, canSetWorkshopCode: true, topicId: topic.id, settings: this.settings(), budget: this.publicBudget(ledger), groups, failedCalls: ledger.failedCalls });
+      return json({ workshopId: this.workshopId, canSetWorkshopCode: true, topicId: topic.id, settings: this.settings(), answerLengthTarget: await this.answerLengthTarget(), budget: this.publicBudget(ledger), groups, failedCalls: ledger.failedCalls });
+    }
+    if (path === '/admin/answer-length' && request.method === 'POST') {
+      const { workshopId, answerLengthTarget } = (await readJson(request, 2000)) ?? {};
+      if (workshopId !== this.workshopId) fail('The active workshop has changed. Refresh status before saving.', 409);
+      if (!Number.isSafeInteger(answerLengthTarget) || answerLengthTarget < 1) fail('Enter a positive whole number of characters.');
+      await this.storage.put('answer-length-target', answerLengthTarget);
+      return json({ answerLengthTarget });
     }
     if (path === '/admin/pause' && request.method === 'POST') {
       const { paused } = await readJson(request, 1000);
@@ -408,9 +416,10 @@ export class Workshop {
       const runs = await this.storage.list({ prefix: 'run:' });
       const ratings = await this.storage.list({ prefix: 'ratings:' });
       const groupNames = await this.storage.list({ prefix: 'group-name:' });
-      const topics = TOPICS.map(item => ({ id: item.id, name: item.name, instructions: instructionsForTopic(item), rubric: rubricForTopic(item) }));
-      topics.push(COVID_TOPIC);
-      return json({ schemaVersion: 2, exportedAt: new Date().toISOString(), workshopId: this.workshopId, settings: this.settings(), ledger: await this.ledger(), instructions: topics[0].instructions, rubric: RUBRIC, ratingScale: RATING_SCALE, topics, groupNames: Object.fromEntries([...groupNames].map(([key, name]) => [key.slice('group-name:'.length), name])), runs: [...runs.values()].map(runDetails), ratings: Object.fromEntries(ratings) });
+      const answerLengthTarget = await this.answerLengthTarget();
+      const topics = TOPICS.map(item => ({ id: item.id, name: item.name, instructions: instructionsForTopic(item, answerLengthTarget), rubric: rubricForTopic(item) }));
+      topics.push({ ...COVID_TOPIC, instructions: instructionsForTopic(COVID_TOPIC, answerLengthTarget) });
+      return json({ schemaVersion: 2, exportedAt: new Date().toISOString(), workshopId: this.workshopId, settings: this.settings(), answerLengthTarget, ledger: await this.ledger(), instructions: topics[0].instructions, rubric: RUBRIC, ratingScale: RATING_SCALE, topics, groupNames: Object.fromEntries([...groupNames].map(([key, name]) => [key.slice('group-name:'.length), name])), runs: [...runs.values()].map(runDetails), ratings: Object.fromEntries(ratings) });
     }
     if (path === '/admin/delete' && request.method === 'POST') {
       const { confirmation } = await readJson(request, 1000);

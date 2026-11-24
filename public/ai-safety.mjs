@@ -1,10 +1,8 @@
-import { ANSWER_LENGTH_INSTRUCTIONS } from './shared.mjs';
-
 export const COVID_BRIEF = 'A fictional health protection team in England is reviewing SARS-CoV-2 sequencing data from NHS sites. Variant A was found in 10 of 50 sequenced samples last week and 20 of 50 this week. This week, more samples came from one NHS hospital outbreak.';
 export const COVID_TOPIC = {
   id: 'covid-surveillance',
   name: 'COVID-19 and AI safety',
-  instructions: `Help with a UK public health workshop. Use only the supplied fictional aggregate surveillance data. Distinguish the share among sequenced samples from prevalence in the wider community and explain the effect of changes in sampling. Return concise Markdown in UK English. ${ANSWER_LENGTH_INSTRUCTIONS}\n\n${COVID_BRIEF}`
+  instructions: `Help with a UK public health workshop. Use only the supplied fictional aggregate surveillance data. Distinguish the share among sequenced samples from prevalence in the wider community and explain the effect of changes in sampling. Return concise Markdown in UK English.\n\n${COVID_BRIEF}`
 };
 
 export const COVID_REFUSAL_TASK = 'refusal';
