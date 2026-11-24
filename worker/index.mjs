@@ -1,5 +1,5 @@
 import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
-import { issueToken, verifyToken, equalSecret, isConfigured, readJson } from './security.mjs';
+import { issueToken, verifyToken, equalSecret, workshopCodeDigest, isConfigured, readJson } from './security.mjs';
 import { COVID_TOPIC, liveCovidPrompt } from '../public/ai-safety.mjs';
 import { WorkshopStorage } from './workshop-storage.mjs';
 
@@ -53,9 +53,10 @@ export default {
 };
 
 export class Workshop {
-  constructor(ctx, env) {
+  constructor(ctx, env, workshopId = env.WORKSHOP_ID) {
     this.ctx = ctx;
     this.env = env;
+    this.workshopId = workshopId;
     this.storage = ctx.storage;
     this.fetchOpenAI = fetch.bind(globalThis);
     this.joinAttempts = new Map();
@@ -71,7 +72,7 @@ export class Workshop {
   async session(request) {
     const token = request.headers.get('Authorization')?.replace(/^Bearer /, '') || '';
     if (await equalSecret(token, this.env.ADMIN_TOKEN)) return { admin: true };
-    const payload = await verifyToken(token, this.env.SESSION_SECRET, this.env.WORKSHOP_ID);
+    const payload = await verifyToken(token, this.env.SESSION_SECRET, this.workshopId);
     if (!payload || !Number.isInteger(payload.groupId) || payload.groupId < 1 || payload.groupId > this.settings().groups) {
       const message = new URL(request.url).pathname.startsWith('/admin/')
         ? 'The facilitator password was not accepted. Use the ADMIN_TOKEN configured for this workshop service.'
@@ -100,23 +101,30 @@ export class Workshop {
   }
   scopedWorkshop(active) {
     const storage = new WorkshopStorage(this.storage, `workshop-data:${active.sessionId}:`);
-    const workshop = new Workshop({ storage }, { ...this.env, WORKSHOP_ID: active.id });
+    const workshop = new Workshop({ storage }, this.env, active.id);
     workshop.fetchOpenAI = this.fetchOpenAI;
     workshop.joinAttempts = this.joinAttempts;
+    workshop.codeVerifier = active.codeVerifier;
     return workshop;
   }
   async startWorkshop(body) {
-    const { workshopId, previousWorkshopId, requestId } = body ?? {};
+    const { workshopId, workshopCode = '', previousWorkshopId, requestId } = body ?? {};
     const id = typeof workshopId === 'string' ? workshopId.trim() : '';
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(id)) fail('Use 1–100 letters, numbers, hyphens or underscores for the workshop ID.');
     if (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{12,80}$/.test(requestId)) fail('A valid request identifier is required.');
+    if (typeof workshopCode !== 'string') fail('Enter a valid workshop code.');
+    const code = workshopCode.trim();
+    if (code && (code.length < 8 || code.length > 128)) fail('Use 8–128 characters for the new workshop code.');
+    const sessionId = crypto.randomUUID();
+    const newVerifier = code ? { salt: sessionId, digest: await workshopCodeDigest(code, sessionId) } : null;
     const active = await this.storage.transaction(async tx => {
       const current = await tx.get('active-workshop');
       if (current?.id === id && current.requestId === requestId) return current;
       if (previousWorkshopId !== (current?.id ?? this.env.WORKSHOP_ID)) fail('The active workshop has changed. Refresh status before starting another workshop.', 409);
       if (id === this.env.WORKSHOP_ID || await tx.get(`workshop-id:${id}`)) fail('That workshop ID has already been used. Choose a fresh ID.', 409);
-      const next = { id, sessionId: crypto.randomUUID(), requestId, startedAt: new Date().toISOString() };
-      await tx.put(`workshop-id:${id}`, next);
+      const metadata = { id, sessionId, requestId, startedAt: new Date().toISOString() };
+      const next = { ...metadata, codeVerifier: newVerifier ?? current?.codeVerifier ?? null };
+      await tx.put(`workshop-id:${id}`, metadata);
       await tx.put('active-workshop', next);
       return next;
     });
@@ -135,14 +143,19 @@ export class Workshop {
         this.joinAttempts.set(key, (this.joinAttempts.get(key) || 0) + 1);
         if (this.joinAttempts.size > 1000) this.joinAttempts = new Map([[key, 1]]);
         if (this.joinAttempts.get(key) > 120) fail('Too many join attempts. Wait one minute and try again.', 429);
-        const body = await readJson(request, 2000);
-        if (!await equalSecret(body.code, this.env.WORKSHOP_CODE)) fail('That workshop code is not correct.', 401);
+        const body = (await readJson(request, 2000)) ?? {};
+        const code = typeof body.code === 'string' ? body.code : '';
+        const verifier = this.codeVerifier;
+        const matches = verifier
+          ? await equalSecret(await workshopCodeDigest(code.trim(), verifier.salt), verifier.digest)
+          : await equalSecret(code, this.env.WORKSHOP_CODE);
+        if (!matches) fail('That workshop code is not correct.', 401);
         if (!Number.isInteger(body.groupId) || body.groupId < 1 || body.groupId > this.settings().groups) fail('Choose a valid group.');
         const name = typeof body.groupName === 'string' ? body.groupName.trim().slice(0, 32) : '';
         if (name) await this.storage.put(`group-name:${body.groupId}`, name);
         const groupName = name || await this.groupName(body.groupId);
         const payload = { groupId: body.groupId, exp: Date.now() + this.settings().sessionHours * 3600000 };
-        const token = await issueToken(payload, this.env.SESSION_SECRET, this.env.WORKSHOP_ID);
+        const token = await issueToken(payload, this.env.SESSION_SECRET, this.workshopId);
         return json({ token, session: { ...payload, groupName }, settings: this.settings() });
       }
       const session = await this.session(request);
@@ -358,7 +371,7 @@ export class Workshop {
         const group = await this.group(groupScope(id, topic.id));
         return { id, name: await this.groupName(id), calls: ledger.calls[id] || 0, active: ledger.active[id] || 0, shared: group.published.length, revealed: group.revealed };
       }));
-      return json({ workshopId: this.env.WORKSHOP_ID, topicId: topic.id, settings: this.settings(), budget: this.publicBudget(ledger), groups, failedCalls: ledger.failedCalls });
+      return json({ workshopId: this.workshopId, canSetWorkshopCode: true, topicId: topic.id, settings: this.settings(), budget: this.publicBudget(ledger), groups, failedCalls: ledger.failedCalls });
     }
     if (path === '/admin/pause' && request.method === 'POST') {
       const { paused } = await readJson(request, 1000);
@@ -379,7 +392,7 @@ export class Workshop {
       const groupNames = await this.storage.list({ prefix: 'group-name:' });
       const topics = TOPICS.map(item => ({ id: item.id, name: item.name, instructions: instructionsForTopic(item), rubric: rubricForTopic(item) }));
       topics.push(COVID_TOPIC);
-      return json({ schemaVersion: 2, exportedAt: new Date().toISOString(), workshopId: this.env.WORKSHOP_ID, settings: this.settings(), ledger: await this.ledger(), instructions: topics[0].instructions, rubric: RUBRIC, ratingScale: RATING_SCALE, topics, groupNames: Object.fromEntries([...groupNames].map(([key, name]) => [key.slice('group-name:'.length), name])), runs: [...runs.values()].map(runDetails), ratings: Object.fromEntries(ratings) });
+      return json({ schemaVersion: 2, exportedAt: new Date().toISOString(), workshopId: this.workshopId, settings: this.settings(), ledger: await this.ledger(), instructions: topics[0].instructions, rubric: RUBRIC, ratingScale: RATING_SCALE, topics, groupNames: Object.fromEntries([...groupNames].map(([key, name]) => [key.slice('group-name:'.length), name])), runs: [...runs.values()].map(runDetails), ratings: Object.fromEntries(ratings) });
     }
     if (path === '/admin/delete' && request.method === 'POST') {
       const { confirmation } = await readJson(request, 1000);

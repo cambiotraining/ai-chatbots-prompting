@@ -326,6 +326,9 @@ function renderFacilitator() {
       <label for="new-workshop-id">New workshop ID</label>
       <input id="new-workshop-id" name="workshopId" value="${crypto.randomUUID()}" pattern="[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,99}" maxlength="100" required aria-describedby="new-workshop-id-help">
       <p class="fine-print" id="new-workshop-id-help">Use the generated ID or enter your own using letters, numbers, hyphens and underscores. Each workshop needs a fresh ID.</p>
+      ${data.canSetWorkshopCode ? `<label class="top-gap" for="new-workshop-code">New workshop code (optional)</label>
+      <input type="password" id="new-workshop-code" name="workshopCode" minlength="8" maxlength="128" autocomplete="new-password" aria-describedby="new-workshop-code-help">
+      <p class="fine-print" id="new-workshop-code-help">Enter 8–128 characters to set the code participants use to join. Leave it blank to keep the current code.</p>` : ''}
       <p class="form-error" id="new-workshop-error" role="alert"></p>
       <button class="button primary" type="submit">Start new workshop</button>
     </form>
@@ -525,15 +528,19 @@ document.addEventListener('submit', async event => {
     const errorMessage = $('#new-workshop-error', form);
     if (submit.disabled) return;
     const workshopId = form.elements.workshopId.value.trim();
+    const codeField = form.elements.workshopCode;
+    const workshopCode = codeField?.value.trim();
     if (!confirm(`Start workshop “${workshopId}” with fresh data and budget counters for all ${state.admin.settings.groups} groups? Participants will need to join again.`)) return;
     submit.disabled = true;
     errorMessage.textContent = '';
     try {
       await api('/admin/workshops/start', {
         workshopId,
+        ...(workshopCode ? { workshopCode } : {}),
         previousWorkshopId: form.dataset.previousWorkshopId,
         requestId: form.dataset.requestId
       }, true);
+      if (codeField) codeField.value = '';
       if (state.apiBase === (state.adminBase || state.apiBase)) {
         state.mode = 'demo';
         state.token = '';
@@ -547,7 +554,7 @@ document.addEventListener('submit', async event => {
       }
       await refreshAdmin();
       renderHeader();
-      toast('New workshop started. All groups can join now.');
+      toast(workshopCode ? 'New workshop started. Share the new workshop code with participants.' : 'New workshop started. All groups can join now.');
     } catch (error) {
       errorMessage.textContent = error.message;
     } finally { submit.disabled = false; }

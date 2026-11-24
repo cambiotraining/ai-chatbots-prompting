@@ -120,12 +120,15 @@ You need your own Cloudflare account and a GitHub repository. The source has not
 1. Open **Facilitator** on the published app and connect with your facilitator password.
 2. Select **Export workshop JSON** if you want a copy of the current results.
 3. Under **Start a new workshop**, use the generated **New workshop ID** or enter a fresh ID of 1–100 letters, numbers, hyphens or underscores, starting with a letter or number.
-4. Select **Start new workshop** and confirm. All ten groups start with empty histories, names, ratings and comparisons across every activity, and fresh spending and call counters. Participants join again using the workshop code.
-5. Check the new ID and empty group totals in **Workshop status**. Joining a group and inspecting its history uses no OpenAI credits.
+4. Enter a **New workshop code** of 8–128 characters, or leave the field blank to keep the current code.
+5. Select **Start new workshop** and confirm. All ten groups start with empty histories, names, ratings and comparisons across every activity, and fresh spending and call counters. Give participants the active code so they can join again.
+6. Check the new ID and empty group totals in **Workshop status**. Joining a group and inspecting its history uses no OpenAI credits.
 
 Previous workshop data stays stored separately. Export any results you want before switching, as the facilitator view shows the active workshop. IDs already used in this installation are rejected to prevent accidentally reopening earlier data. Starting a new workshop gives it a new application budget counter. Check your remaining OpenAI credits before the next session.
 
 The app stores the active workshop ID privately on the service, and it persists across service restarts and deployments. The Cloudflare `WORKSHOP_ID` secret selects the initial installation and its existing data. Use the facilitator control for subsequent workshops. Changing that secret selects a different installation. Deploy the updated Worker and publish the updated GitHub Pages interface once to enable this control. Local testing with `npm run dev` also supports the control and persists workshops in the ignored local store.
+
+Cloudflare’s `WORKSHOP_CODE` secret provides the initial join code. Once you set a code in the facilitator view, the app uses that code for the new workshop and carries it forward until you enter another. Keep a copy of it before submitting, as the app stores a verification hash.
 
 Cloudflare charges and plan limits are separate from OpenAI credits. Review the available Workers/Durable Objects plan for your account before the workshop.
 

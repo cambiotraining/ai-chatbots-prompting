@@ -28,6 +28,10 @@ export async function equalSecret(a, b) {
   const [x, y] = await Promise.all([a, b].map(s => crypto.subtle.digest('SHA-256', enc.encode(s))));
   return new Uint8Array(x).every((v, i) => v === new Uint8Array(y)[i]);
 }
+export async function workshopCodeDigest(code, salt) {
+  const bytes = await crypto.subtle.digest('SHA-256', enc.encode(JSON.stringify([salt, code])));
+  return base64url(new Uint8Array(bytes));
+}
 const secretMinimumLengths = {
   OPENAI_API_KEY: 8,
   WORKSHOP_CODE: 8,
