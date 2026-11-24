@@ -72,7 +72,12 @@ export class Workshop {
     const token = request.headers.get('Authorization')?.replace(/^Bearer /, '') || '';
     if (await equalSecret(token, this.env.ADMIN_TOKEN)) return { admin: true };
     const payload = await verifyToken(token, this.env.SESSION_SECRET, this.env.WORKSHOP_ID);
-    if (!payload || !Number.isInteger(payload.groupId) || payload.groupId < 1 || payload.groupId > this.settings().groups) fail('Your workshop session has expired. Please join again.', 401);
+    if (!payload || !Number.isInteger(payload.groupId) || payload.groupId < 1 || payload.groupId > this.settings().groups) {
+      const message = new URL(request.url).pathname.startsWith('/admin/')
+        ? 'The facilitator password was not accepted. Use the ADMIN_TOKEN configured for this workshop service.'
+        : 'Your workshop session has expired. Please join again.';
+      fail(message, 401);
+    }
     return payload;
   }
   publicBudget(ledger) {

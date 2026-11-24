@@ -205,6 +205,7 @@ Service/accounting checks run against simulated provider responses. **Real OpenA
 
 ### Troubleshooting
 
+- **Facilitator sign-in fails**: the facilitator password must match the Production `ADMIN_TOKEN` secret on the Worker at the service URL you entered. Group sign-in uses `WORKSHOP_CODE`. If you no longer have the facilitator password, update `ADMIN_TOKEN` in Cloudflare under the Worker’s **Settings → Runtime variables and secrets**, save/deploy the change, then enter that value in **Facilitator access**. Older Worker versions may show “Your workshop session has expired” when a facilitator password is rejected. Starting a new workshop preserves facilitator access.
 - **“The facilitator still needs to configure the API key and workshop secrets.”** Check the startup output from `npm run dev`. It names any missing, placeholder, or too-short setting without printing its value. Correct the setting in `.dev.vars` and restart. A `configured: true` response from `/health` confirms the local checks pass. OpenAI verifies the key on the first live request.
 - **“Website is not allowed…” / connection error**: check `ALLOWED_ORIGINS`, including `https`, the hostname, and any custom domain. A repository path is not part of an origin.
 - **OpenAI 429**: inspect your API credits and per-model limits. Available credits do not guarantee enough simultaneous-request capacity.

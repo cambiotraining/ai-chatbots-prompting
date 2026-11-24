@@ -462,6 +462,7 @@ $('#connection-form').addEventListener('submit', async event => {
       const token = String(fd.get('adminToken')).trim();
       if (!token) throw new Error('Enter the facilitator password.');
       const response = await fetch(`${base}/admin/status?topic=${encodeURIComponent(state.topic.id)}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+      if (response.status === 401) throw new Error('The facilitator password was not accepted. Use the ADMIN_TOKEN configured for this workshop service.');
       const data = await response.json(); if (!response.ok) throw new Error(data.error || 'Could not connect as facilitator.');
       state.adminBase = base; state.adminToken = token; state.admin = data;
       sessionStorage.setItem('prompting-lab-admin', JSON.stringify({ apiBase: base, token }));
