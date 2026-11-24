@@ -1,4 +1,4 @@
-import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
+import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, MAX_ANSWER_CHARACTERS, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
 import { issueToken, verifyToken, equalSecret, workshopCodeDigest, isConfigured, readJson } from './security.mjs';
 import { COVID_TOPIC, liveCovidPrompt } from '../public/ai-safety.mjs';
 import { WorkshopStorage } from './workshop-storage.mjs';
@@ -26,6 +26,14 @@ function groupRatingsKey(scope, round) {
 
 function runDetails(run) {
   return { ...run, topicId: run.topicId ?? DEFAULT_TOPIC_ID, instructions: run.instructions ?? LEGACY_MOUSE_INSTRUCTIONS };
+}
+
+function limitAnswer(text) {
+  if (text.length <= MAX_ANSWER_CHARACTERS) return text;
+  const prefix = text.slice(0, MAX_ANSWER_CHARACTERS - 1).replace(/[\uD800-\uDBFF]$/, '');
+  const wordBoundary = prefix.search(/\s+\S*$/);
+  const shortened = wordBoundary >= prefix.length - 40 ? prefix.slice(0, wordBoundary) : prefix;
+  return `${shortened.trimEnd()}…`;
 }
 
 export default {
@@ -324,11 +332,12 @@ export class Workshop {
         return json({ error: message, runId: id }, status === 429 ? 429 : 502);
       }
       const data = await upstream.json();
-      const text = (data.output || []).filter(o => o.type === 'message').flatMap(o => o.content || []).filter(c => c.type === 'output_text' || c.type === 'refusal').map(c => c.text || c.refusal || '').join('\n\n');
+      const answer = (data.output || []).filter(o => o.type === 'message').flatMap(o => o.content || []).filter(c => c.type === 'output_text' || c.type === 'refusal').map(c => c.text || c.refusal || '').join('\n\n').trim();
+      const text = limitAnswer(answer);
       const usage = data.usage;
       const metered = usage && Number.isSafeInteger(usage.input_tokens) && usage.input_tokens >= 0 && Number.isSafeInteger(usage.output_tokens) && usage.output_tokens >= 0 && (!usage.input_tokens_details?.cached_tokens || Number.isSafeInteger(usage.input_tokens_details.cached_tokens) && usage.input_tokens_details.cached_tokens >= 0);
       const actual = metered ? costMicros(model, usage) : reservation;
-      const complete = { status: text ? 'complete' : 'failed', text: text.slice(0, 24000), usage: metered ? usage : null, costMicros: actual, uncertainCharge: !metered, latencyMs: Date.now() - started, responseId: data.id, truncated: data.status === 'incomplete', error: text ? null : 'No visible response was returned. The request may still have used tokens.', returnedModel: data.model };
+      const complete = { status: text ? 'complete' : 'failed', text, usage: metered ? usage : null, costMicros: actual, uncertainCharge: !metered, latencyMs: Date.now() - started, responseId: data.id, truncated: data.status === 'incomplete' || answer.length > MAX_ANSWER_CHARACTERS, error: text ? null : 'No visible response was returned. The request may still have used tokens.', returnedModel: data.model };
       const settled = await this.settle(id, complete);
       return json(this.runResult(settled), text ? 200 : 502);
     } catch {

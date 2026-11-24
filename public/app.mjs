@@ -149,7 +149,7 @@ function historyMarkup() {
     const role = expertRoleById(r.roleId);
     const responseLabel = role ? `${modelName} · ${role.name}` : modelName;
     const meta = r.usage ? `${r.usage.input_tokens.toLocaleString()} input / ${r.usage.output_tokens.toLocaleString()} output tokens · ${money(r.costMicros / 1e6, 4)} · ${(r.latencyMs / 1000).toFixed(1)}s` : state.mode === 'demo' ? 'Authored example · No API call or cost' : r.status === 'pending' ? 'Request still running · Refresh shortly' : 'Usage could not be confirmed';
-    const content = `<div class="response-panel" data-run="${esc(r.id)}"><div class="section-top"><h3>${r.status === 'pending' ? 'Request in progress' : r.status === 'failed' ? 'Request incomplete' : `Response · turn ${r.turn}`}</h3><span class="badge">${esc(responseLabel)}</span></div>${r.error ? `<div class="callout warning">${esc(r.error)}</div>` : ''}${r.truncated ? '<div class="callout warning">The response reached its token limit and may be unfinished. Consider a shorter requested answer.</div>' : ''}<div class="response-text">${renderMarkdown(r.text)}</div><div class="response-meta">${esc(meta)}</div><details class="privacy"><summary>View prompt and context</summary><pre class="prompt-context">${esc(r.instructions ?? instructionsForTopic(state.topic))}</pre>${r.messages.map(m => `<p><strong>${esc(m.role)}</strong><br>${esc(m.content).replace(/\n/g, '<br>')}</p>`).join('')}</details>
+    const content = `<div class="response-panel" data-run="${esc(r.id)}"><div class="section-top"><h3>${r.status === 'pending' ? 'Request in progress' : r.status === 'failed' ? 'Request incomplete' : `Response · turn ${r.turn}`}</h3><span class="badge">${esc(responseLabel)}</span></div>${r.error ? `<div class="callout warning">${esc(r.error)}</div>` : ''}${r.truncated ? '<div class="callout warning">This response reached a length limit and may be unfinished.</div>' : ''}<div class="response-text">${renderMarkdown(r.text)}</div><div class="response-meta">${esc(meta)}</div><details class="privacy"><summary>View prompt and context</summary><pre class="prompt-context">${esc(r.instructions ?? instructionsForTopic(state.topic))}</pre>${r.messages.map(m => `<p><strong>${esc(m.role)}</strong><br>${esc(m.content).replace(/\n/g, '<br>')}</p>`).join('')}</details>
       ${r.status === 'complete' ? `<div class="response-toolbar button-row">
         <button class="button small primary" data-action="publish" data-id="${esc(r.id)}" ${isShared || state.group?.revealed ? 'disabled' : ''}>${isShared ? 'Added to comparison ✓' : 'Add to comparison'}</button>
         <button class="button small" data-action="export-run" data-id="${esc(r.id)}">Export</button>
@@ -232,7 +232,7 @@ function comparisonCard(row, revealed, bestScore, bestCount) {
         ${revealed ? '' : `<button type="button" class="text-button" data-action="remove-comparison" data-id="${esc(row.id)}" aria-label="Remove from comparison (${esc(row.label)})">Remove from comparison</button>`}
       </div>`}
     </div>
-    ${row.truncated ? '<div class="callout warning">This response reached its token limit.</div>' : ''}
+    ${row.truncated ? '<div class="callout warning">This response reached a length limit and may be unfinished.</div>' : ''}
     ${revealed ? `<div class="reveal-info">
       <strong>${esc(strategyLabel(row))}</strong>
       ${esc(model)} · ${row.turn || 1} turn${row.turn === 1 ? '' : 's'}
@@ -398,7 +398,7 @@ function renderAiSafety() {
       answer.innerHTML = renderMarkdown(run.text);
       $('details p', result).textContent = run.prompt;
       $('#covid-results', exercise).prepend(result);
-      status.textContent = run.truncated ? 'Response ready. It reached the token limit and may be unfinished.' : 'Response ready below.';
+      status.textContent = run.truncated ? 'Response ready. It reached a length limit and may be unfinished.' : 'Response ready below.';
     } catch (error) {
       status.textContent = error.message;
     } finally {

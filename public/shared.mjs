@@ -57,12 +57,15 @@ export function briefForTopic(topic) {
   return `${topic.question}\n\n${topic.facts.map(fact => `- ${fact}`).join('\n')}`;
 }
 
-const openingInstructions = 'You are assisting a life-sciences workshop. Use the shared fictional scenario below for every strategy. Respond with a high-level study design or the requested critique/questions. Keep responses under 500 words. Do not invent experimental evidence, references, or numeric justifications.';
+export const MAX_ANSWER_CHARACTERS = 500;
+export const ANSWER_LENGTH_INSTRUCTIONS = `Keep each answer to ${MAX_ANSWER_CHARACTERS} characters or fewer, including spaces and Markdown. Use one short paragraph or a few short bullets. Prioritise the most useful points and finish your last sentence.`;
+const openingInstructions = 'You are assisting a life-sciences workshop. Use the shared fictional scenario below for every strategy. Respond with a high-level study design or the requested critique/questions.';
+const evidenceInstructions = 'Do not invent experimental evidence, references, or numeric justifications.';
 const closingInstructions = 'All responses are educational proposals for expert review, not validated protocols. No web search or other tools are available.';
-export const LEGACY_MOUSE_INSTRUCTIONS = `${openingInstructions} ${mouseTopic.guidance} ${closingInstructions}\n\nSHARED SCENARIO\n${briefForTopic(mouseTopic)}`;
+export const LEGACY_MOUSE_INSTRUCTIONS = `${openingInstructions} Keep responses under 500 words. ${evidenceInstructions} ${mouseTopic.guidance} ${closingInstructions}\n\nSHARED SCENARIO\n${briefForTopic(mouseTopic)}`;
 
 export function instructionsForTopic(topic) {
-  return `${openingInstructions} ${topic.guidance} ${closingInstructions}\n\nAlways return Markdown, including for clarification questions and follow-ups. Use Markdown headings, lists, emphasis, or tables where they help the reader. Write the Markdown directly and leave the overall answer outside code fences.\n\nSHARED SCENARIO\n${briefForTopic(topic)}`;
+  return `${openingInstructions} ${evidenceInstructions} ${topic.guidance} ${closingInstructions}\n\nAlways return Markdown, including for clarification questions and follow-ups. ${ANSWER_LENGTH_INSTRUCTIONS} Write the Markdown directly and leave the overall answer outside code fences.\n\nSHARED SCENARIO\n${briefForTopic(topic)}`;
 }
 export const STRATEGIES = [
   {
