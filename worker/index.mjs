@@ -1,4 +1,4 @@
-import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, MAX_ANSWER_CHARACTERS, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
+import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
 import { issueToken, verifyToken, equalSecret, workshopCodeDigest, isConfigured, readJson } from './security.mjs';
 import { COVID_TOPIC, liveCovidPrompt } from '../public/ai-safety.mjs';
 import { WorkshopStorage } from './workshop-storage.mjs';
@@ -329,10 +329,10 @@ export class Workshop {
       const metered = usage && Number.isSafeInteger(usage.input_tokens) && usage.input_tokens >= 0 && Number.isSafeInteger(usage.output_tokens) && usage.output_tokens >= 0 && (!usage.input_tokens_details?.cached_tokens || Number.isSafeInteger(usage.input_tokens_details.cached_tokens) && usage.input_tokens_details.cached_tokens >= 0);
       const actual = metered ? costMicros(model, usage) : reservation;
       let error = null;
-      if (answer.length > MAX_ANSWER_CHARACTERS || (data.status === 'incomplete' && data.incomplete_details?.reason === 'max_output_tokens')) {
-        error = `The model could not finish an answer within the ${MAX_ANSWER_CHARACTERS.toLocaleString('en-GB')}-character limit. Try asking for just the most important points.`;
-      } else if (data.status === 'incomplete') {
-        error = 'The model did not return a complete answer.';
+      if (data.status === 'incomplete') {
+        error = data.incomplete_details?.reason === 'max_output_tokens'
+          ? 'The model ran out of output tokens before finishing. Try asking for fewer points.'
+          : 'The model did not return a complete answer.';
       } else if (!answer) {
         error = 'No visible response was returned. The request may still have used tokens.';
       }

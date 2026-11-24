@@ -57,8 +57,7 @@ export function briefForTopic(topic) {
   return `${topic.question}\n\n${topic.facts.map(fact => `- ${fact}`).join('\n')}`;
 }
 
-export const MAX_ANSWER_CHARACTERS = 1500;
-export const ANSWER_LENGTH_INSTRUCTIONS = `Aim for about 1,000 characters and use at most ${MAX_ANSWER_CHARACTERS} characters, including spaces and Markdown. Use one short paragraph or a few short bullets. Prioritise the most useful points. Before submitting, shorten your draft if needed so the entire answer fits and ends with a complete thought.`;
+export const ANSWER_LENGTH_INSTRUCTIONS = 'Focus on the most important points and aim for around 1,200 characters, including spaces and Markdown. Use one short paragraph or a few short bullets and finish your last thought.';
 const openingInstructions = 'You are assisting a life-sciences workshop. Use the shared fictional scenario below for every strategy. Respond with a high-level study design or the requested critique/questions.';
 const evidenceInstructions = 'Do not invent experimental evidence, references, or numeric justifications.';
 const closingInstructions = 'All responses are educational proposals for expert review, not validated protocols. No web search or other tools are available.';

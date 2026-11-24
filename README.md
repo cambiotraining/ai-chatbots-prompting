@@ -71,7 +71,7 @@ For a workshop rehearsal, use a few browser profiles/devices to join different g
 - Maximum **60 API calls per group**, **four running calls per group**, and **1,400 output tokens per call** by default.
 - Allowlisted models are `gpt-4.1-2025-04-14`, `gpt-5.6-sol`, and `gpt-6-luna`. Model access depends on the OpenAI API project.
 - Input conversations are limited to 12,000 UTF-8 bytes and nine messages.
-- Each live answer is prompted to aim for about 1,000 characters and fit within 1,500 characters, including Markdown. The app shows complete answers within that limit. If the model exceeds the limit or its answer is interrupted, ask for fewer points and submit again if needed.
+- The model is asked to focus on the most important points and aim for around 1,200 characters, including Markdown. Completed answers appear in full.
 - The service transactionally reserves a conservative upper-bound token cost **before** calling OpenAI. Concurrent requests cannot reserve the same remaining budget.
 - The reservation is replaced with an estimate based on returned usage and configured rates, including cached input when reported. The lab skips cache writes on GPT-5.6 Sol and GPT-6 Luna. Failed connections retain the conservative estimate because a charge may have occurred.
 - Duplicate request identifiers return the existing request instead of making another paid call. There are no automatic paid retries.
