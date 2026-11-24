@@ -28,14 +28,6 @@ function runDetails(run) {
   return { ...run, topicId: run.topicId ?? DEFAULT_TOPIC_ID, instructions: run.instructions ?? LEGACY_MOUSE_INSTRUCTIONS };
 }
 
-function limitAnswer(text) {
-  if (text.length <= MAX_ANSWER_CHARACTERS) return text;
-  const prefix = text.slice(0, MAX_ANSWER_CHARACTERS - 1).replace(/[\uD800-\uDBFF]$/, '');
-  const wordBoundary = prefix.search(/\s+\S*$/);
-  const shortened = wordBoundary >= prefix.length - 40 ? prefix.slice(0, wordBoundary) : prefix;
-  return `${shortened.trimEnd()}…`;
-}
-
 export default {
   async fetch(request, env) {
     const origin = request.headers.get('Origin');
@@ -333,13 +325,30 @@ export class Workshop {
       }
       const data = await upstream.json();
       const answer = (data.output || []).filter(o => o.type === 'message').flatMap(o => o.content || []).filter(c => c.type === 'output_text' || c.type === 'refusal').map(c => c.text || c.refusal || '').join('\n\n').trim();
-      const text = limitAnswer(answer);
       const usage = data.usage;
       const metered = usage && Number.isSafeInteger(usage.input_tokens) && usage.input_tokens >= 0 && Number.isSafeInteger(usage.output_tokens) && usage.output_tokens >= 0 && (!usage.input_tokens_details?.cached_tokens || Number.isSafeInteger(usage.input_tokens_details.cached_tokens) && usage.input_tokens_details.cached_tokens >= 0);
       const actual = metered ? costMicros(model, usage) : reservation;
-      const complete = { status: text ? 'complete' : 'failed', text, usage: metered ? usage : null, costMicros: actual, uncertainCharge: !metered, latencyMs: Date.now() - started, responseId: data.id, truncated: data.status === 'incomplete' || answer.length > MAX_ANSWER_CHARACTERS, error: text ? null : 'No visible response was returned. The request may still have used tokens.', returnedModel: data.model };
-      const settled = await this.settle(id, complete);
-      return json(this.runResult(settled), text ? 200 : 502);
+      let error = null;
+      if (answer.length > MAX_ANSWER_CHARACTERS || (data.status === 'incomplete' && data.incomplete_details?.reason === 'max_output_tokens')) {
+        error = `The model could not finish an answer within the ${MAX_ANSWER_CHARACTERS.toLocaleString('en-GB')}-character limit. Try asking for just the most important points.`;
+      } else if (data.status === 'incomplete') {
+        error = 'The model did not return a complete answer.';
+      } else if (!answer) {
+        error = 'No visible response was returned. The request may still have used tokens.';
+      }
+      const settled = await this.settle(id, {
+        status: error ? 'failed' : 'complete',
+        text: error ? '' : answer,
+        usage: metered ? usage : null,
+        costMicros: actual,
+        uncertainCharge: !metered,
+        latencyMs: Date.now() - started,
+        responseId: data.id,
+        truncated: false,
+        error,
+        returnedModel: data.model
+      });
+      return json(this.runResult(settled), error ? 502 : 200);
     } catch {
       await this.settle(id, { status: 'failed', error: 'The connection ended before usage could be confirmed. A conservative charge has been kept in the budget. Refresh your history before retrying.', costMicros: reservation, uncertainCharge: true, latencyMs: Date.now() - started });
       return json({ error: 'The connection ended before the response arrived. Refresh your history; the budget retains a conservative estimate.', runId: id }, 504);
