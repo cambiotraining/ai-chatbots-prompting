@@ -115,7 +115,17 @@ You need your own Cloudflare account and a GitHub repository. The source has not
 
 6. Visit the service's `/health` endpoint. It should report `ok: true` and `configured: true`. This checks secret presence, not OpenAI authentication, credit balance, or model access.
 
-Before the next workshop, export the results and run `npx wrangler secret put WORKSHOP_ID` with a fresh private ID. The new ID gives the next workshop its own group history and budget ledger. Groups sign in again for the new workshop.
+## Start a new workshop
+
+1. Open **Facilitator** on the published app and connect with your facilitator password.
+2. Select **Export workshop JSON** if you want a copy of the current results.
+3. Under **Start a new workshop**, use the generated **New workshop ID** or enter a fresh ID of 1–100 letters, numbers, hyphens or underscores, starting with a letter or number.
+4. Select **Start new workshop** and confirm. All ten groups start with empty histories, names, ratings and comparisons across every activity, and fresh spending and call counters. Participants join again using the workshop code.
+5. Check the new ID and empty group totals in **Workshop status**. Joining a group and inspecting its history uses no OpenAI credits.
+
+Previous workshop data stays stored separately. Export any results you want before switching, as the facilitator view shows the active workshop. IDs already used in this installation are rejected to prevent accidentally reopening earlier data. Starting a new workshop gives it a new application budget counter. Check your remaining OpenAI credits before the next session.
+
+The app stores the active workshop ID privately on the service, and it persists across service restarts and deployments. The Cloudflare `WORKSHOP_ID` secret selects the initial installation and its existing data. Use the facilitator control for subsequent workshops. Changing that secret selects a different installation. Deploy the updated Worker and publish the updated GitHub Pages interface once to enable this control. Local testing with `npm run dev` also supports the control and persists workshops in the ignored local store.
 
 Cloudflare charges and plan limits are separate from OpenAI credits. Review the available Workers/Durable Objects plan for your account before the workshop.
 

@@ -1,6 +1,7 @@
 import { MODELS, RUBRIC, RATING_SCALE, RATING_SCALE_ID, PRICE_DATE, TOPICS, DEFAULT_TOPIC_ID, DEFAULT_ROLE_ID, MAX_GROUPS, MAX_SHARED_RESPONSES, LEGACY_MOUSE_INSTRUCTIONS, topicById, instructionsForTopic, rubricForTopic, modelById, strategyById, expertRoleById, costMicros, comparisonRows, validScores } from '../public/shared.mjs';
 import { issueToken, verifyToken, equalSecret, isConfigured, readJson } from './security.mjs';
 import { COVID_TOPIC, liveCovidPrompt } from '../public/ai-safety.mjs';
+import { WorkshopStorage } from './workshop-storage.mjs';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 const fail = (message, status = 400) => { throw Object.assign(new Error(message), { status }); };
@@ -78,6 +79,45 @@ export class Workshop {
     return { spent: ledger.spentMicros / 1e6, reserved: ledger.reservedMicros / 1e6, limit: this.settings().budgetMicros / 1e6, paused: ledger.paused, calls: Object.values(ledger.calls).reduce((a, b) => a + b, 0) };
   }
   async fetch(request) {
+    try {
+      const path = new URL(request.url).pathname.replace(/\/$/, '') || '/';
+      if (path === '/admin/workshops/start' && request.method === 'POST') {
+        if (!isConfigured(this.env)) fail(configurationError, 503);
+        const session = await this.session(request);
+        if (!session.admin) fail('Facilitator access is required.', 403);
+        return await this.startWorkshop(await readJson(request, 2000));
+      }
+      const active = await this.storage.get('active-workshop');
+      return await (active ? this.scopedWorkshop(active) : this).handleRequest(request);
+    } catch (error) {
+      return json({ error: error.status ? error.message : 'Something went wrong. Please try again.' }, error.status || 500);
+    }
+  }
+  scopedWorkshop(active) {
+    const storage = new WorkshopStorage(this.storage, `workshop-data:${active.sessionId}:`);
+    const workshop = new Workshop({ storage }, { ...this.env, WORKSHOP_ID: active.id });
+    workshop.fetchOpenAI = this.fetchOpenAI;
+    workshop.joinAttempts = this.joinAttempts;
+    return workshop;
+  }
+  async startWorkshop(body) {
+    const { workshopId, previousWorkshopId, requestId } = body ?? {};
+    const id = typeof workshopId === 'string' ? workshopId.trim() : '';
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,99}$/.test(id)) fail('Use 1–100 letters, numbers, hyphens or underscores for the workshop ID.');
+    if (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{12,80}$/.test(requestId)) fail('A valid request identifier is required.');
+    const active = await this.storage.transaction(async tx => {
+      const current = await tx.get('active-workshop');
+      if (current?.id === id && current.requestId === requestId) return current;
+      if (previousWorkshopId !== (current?.id ?? this.env.WORKSHOP_ID)) fail('The active workshop has changed. Refresh status before starting another workshop.', 409);
+      if (id === this.env.WORKSHOP_ID || await tx.get(`workshop-id:${id}`)) fail('That workshop ID has already been used. Choose a fresh ID.', 409);
+      const next = { id, sessionId: crypto.randomUUID(), requestId, startedAt: new Date().toISOString() };
+      await tx.put(`workshop-id:${id}`, next);
+      await tx.put('active-workshop', next);
+      return next;
+    });
+    return json({ ok: true, workshopId: active.id });
+  }
+  async handleRequest(request) {
     try {
       const url = new URL(request.url);
       const path = url.pathname.replace(/\/$/, '') || '/';
@@ -296,6 +336,11 @@ export class Workshop {
     });
   }
   async alarm() {
+    await this.reconcilePendingRuns();
+    const workshops = await this.storage.list({ prefix: 'workshop-id:' });
+    for (const active of workshops.values()) await this.scopedWorkshop(active).reconcilePendingRuns();
+  }
+  async reconcilePendingRuns() {
     const runs = await this.storage.list({ prefix: 'run:' });
     for (const [key, run] of runs) if (run.status === 'pending' && Date.now() - Date.parse(run.createdAt) > 4 * 60000) await this.settle(key.slice(4), { status: 'failed', error: 'This interrupted request has been closed with its conservative budget estimate.', costMicros: run.reservedMicros, uncertainCharge: true });
     if ([...runs.values()].some(r => r.status === 'pending')) await this.storage.setAlarm(Date.now() + 5 * 60000);
@@ -308,7 +353,7 @@ export class Workshop {
         const group = await this.group(groupScope(id, topic.id));
         return { id, name: await this.groupName(id), calls: ledger.calls[id] || 0, active: ledger.active[id] || 0, shared: group.published.length, revealed: group.revealed };
       }));
-      return json({ topicId: topic.id, settings: this.settings(), budget: this.publicBudget(ledger), groups, failedCalls: ledger.failedCalls });
+      return json({ workshopId: this.env.WORKSHOP_ID, topicId: topic.id, settings: this.settings(), budget: this.publicBudget(ledger), groups, failedCalls: ledger.failedCalls });
     }
     if (path === '/admin/pause' && request.method === 'POST') {
       const { paused } = await readJson(request, 1000);

@@ -231,6 +231,9 @@ th { background: #f1f3eb; }
 .metric span, .metric strong { display: block; }
 .metric strong { font-size: 1.55rem; }
 .admin-actions { display: flex; flex-wrap: wrap; gap: .55rem; margin: 1rem 0; }
+.new-workshop-panel { margin-top: 1rem; }
+.new-workshop-panel code { overflow-wrap: anywhere; }
+.new-workshop-panel form { max-width: 34rem; margin-top: .85rem; }
 
 dialog { width: min(30rem, 100% - 1.5rem); border: 1px solid var(--line); border-radius: .6rem; padding: 1.15rem; background: var(--surface); color: var(--ink); }
 dialog::backdrop { background: #172c2699; }

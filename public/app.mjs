@@ -317,6 +317,19 @@ function renderFacilitator() {
   const data = state.admin;
   if (!data) { $('#view').innerHTML = '<p class="busy"><span class="spinner"></span> Loading workshop status…</p>'; return; }
   $('#view').innerHTML = `<div class="section-top"><div><p class="eyebrow">LIVE WORKSHOP / FACILITATOR</p><h2>Workshop status</h2><p>Token costs are estimated from reported API usage and configured rates. Requests with uncertain usage retain their conservative estimate.</p></div><button class="text-button" data-action="admin-disconnect">Disconnect facilitator</button></div><div class="admin-metrics"><div class="metric"><span>Estimated spend</span><strong>${money(data.budget.spent, 4)}</strong></div><div class="metric"><span>Reserved for running requests</span><strong>${money(data.budget.reserved, 4)}</strong></div><div class="metric"><span>Workshop spending ceiling</span><strong>${money(data.budget.limit)}</strong></div></div><div class="panel"><div class="section-top"><h3>Group progress</h3><span class="badge${data.budget.paused ? ' orange' : ''}">${data.budget.paused ? 'Requests paused' : 'Requests open'}</span></div><div class="table-wrap"><table><thead><tr><th>Group</th><th>Calls used (all topics)</th><th>Running (all topics)</th><th>Shared</th><th>Comparison</th><th>New round</th></tr></thead><tbody>${data.groups.map(g => `<tr><td>${esc(groupLabel(g.id, g.name))}</td><td>${g.calls} / ${data.settings.maxCallsPerGroup}</td><td>${g.active}</td><td>${g.shared}</td><td>${g.revealed ? 'Revealed' : 'Blind'}</td><td><button class="text-button" data-action="new-round" data-id="${g.id}">Start fresh</button></td></tr>`).join('')}</tbody></table></div><div class="admin-actions"><a class="button" href="#budget">Budget planner</a><button class="button primary" data-action="pause">${data.budget.paused ? 'Resume requests' : 'Pause new requests'}</button><button class="button" data-action="admin-refresh">Refresh status</button><button class="button" data-action="export-all">Export workshop JSON</button></div><p class="fine-print">${data.failedCalls} failed or interrupted call(s). Spending here is a local token-cost ledger, not your OpenAI account balance. Other apps can use the same credits. Check <a href="https://platform.openai.com/usage" target="_blank" rel="noreferrer">OpenAI usage</a> and <a href="https://platform.openai.com/settings/organization/limits" target="_blank" rel="noreferrer">rate limits</a> before the workshop.</p><details class="privacy"><summary>Data retention and cleanup</summary><p>The service stores fictional prompts, responses, group names, ratings, and usage. Export before deleting if you want to retain workshop findings. Deleting responses preserves spending and call counts so the financial limit remains in force.</p><button class="button small danger" data-action="delete-data">Delete responses & ratings</button></details></div>`;
+  $('#view').insertAdjacentHTML('beforeend', `<section class="panel new-workshop-panel" aria-labelledby="new-workshop-title">
+    <h3 id="new-workshop-title">Start a new workshop</h3>
+    <p>Current workshop ID <code>${esc(data.workshopId)}</code></p>
+    <p>Start fresh for all ${data.settings.groups} groups across all activities, including group names, responses, ratings, comparisons and budget counters. Participants will need to join again.</p>
+    <p class="fine-print">Export the current results above if you want a copy before switching workshops.</p>
+    <form id="new-workshop-form" data-previous-workshop-id="${esc(data.workshopId)}" data-request-id="${crypto.randomUUID()}">
+      <label for="new-workshop-id">New workshop ID</label>
+      <input id="new-workshop-id" name="workshopId" value="${crypto.randomUUID()}" pattern="[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,99}" maxlength="100" required aria-describedby="new-workshop-id-help">
+      <p class="fine-print" id="new-workshop-id-help">Use the generated ID or enter your own using letters, numbers, hyphens and underscores. Each workshop needs a fresh ID.</p>
+      <p class="form-error" id="new-workshop-error" role="alert"></p>
+      <button class="button primary" type="submit">Start new workshop</button>
+    </form>
+  </section>`);
 }
 async function refreshAdmin() {
   const version = loadingVersion;
@@ -504,6 +517,41 @@ document.addEventListener('change', event => {
   const form = event.target.closest('.rating-form'); if (form) captureRatingDraft(form);
 });
 document.addEventListener('submit', async event => {
+  if (event.target.id === 'new-workshop-form') {
+    event.preventDefault();
+    const form = event.target;
+    const submit = $('button[type="submit"]', form);
+    const errorMessage = $('#new-workshop-error', form);
+    if (submit.disabled) return;
+    const workshopId = form.elements.workshopId.value.trim();
+    if (!confirm(`Start workshop “${workshopId}” with fresh data and budget counters for all ${state.admin.settings.groups} groups? Participants will need to join again.`)) return;
+    submit.disabled = true;
+    errorMessage.textContent = '';
+    try {
+      await api('/admin/workshops/start', {
+        workshopId,
+        previousWorkshopId: form.dataset.previousWorkshopId,
+        requestId: form.dataset.requestId
+      }, true);
+      if (state.apiBase === (state.adminBase || state.apiBase)) {
+        state.mode = 'demo';
+        state.token = '';
+        state.session = null;
+        state.runs = [];
+        state.group = null;
+        state.ratingsDraft = {};
+        state.drafts = {};
+        sessionStorage.removeItem('prompting-lab-session');
+        saveDrafts();
+      }
+      await refreshAdmin();
+      renderHeader();
+      toast('New workshop started. All groups can join now.');
+    } catch (error) {
+      errorMessage.textContent = error.message;
+    } finally { submit.disabled = false; }
+    return;
+  }
   if (!event.target.matches('.rating-form')) return;
   event.preventDefault(); const form = event.target; const draft = captureRatingDraft(form);
   if (!draft || !validScores(draft.scores)) { toast('Choose a score from 1 to 5 for every statement.', true); return; }
